@@ -49,8 +49,6 @@ seleccion = st.sidebar.multiselect(
     max_selections=2,
 )
 
-unificar_grilla = st.sidebar.toggle("Unificar líneas de grilla en doble eje Y", value=True)
-
 if not seleccion:
     st.info("Elegí al menos una variable.")
     st.stop()
@@ -79,7 +77,7 @@ if df_sel.empty:
     st.info("No hay observaciones en el rango elegido.")
     st.stop()
 
-# ---------- Helpers de layout ----------
+# ---------- Helpers ----------
 def wrap_label(label, width=40):
     return "<br>".join(textwrap.wrap(str(label), width))
 
@@ -127,9 +125,9 @@ else:
         fig.add_trace(go.Scatter(x=s1.index, y=s1, name=wrap_label(var1), mode="lines"), secondary_y=False)
         fig.add_trace(go.Scatter(x=s2.index, y=s2, name=wrap_label(var2), mode="lines"), secondary_y=True)
         fig.update_xaxes(title_text="Fecha")
-        # Ejes compactos; leyenda con nombres completos
+        # eje izq con grilla, eje der sincronizado
         fig.update_yaxes(title_text="Eje izq", secondary_y=False, showgrid=True)
-        fig.update_yaxes(title_text="Eje der", secondary_y=True, showgrid=(not unificar_grilla))
+        fig.update_yaxes(title_text="Eje der", secondary_y=True, showgrid=False, matches="y")
         fig.update_layout(
             title=wrap_label(f"{var1} vs {var2} (doble eje Y)", 60),
             legend=legend_bottom,
