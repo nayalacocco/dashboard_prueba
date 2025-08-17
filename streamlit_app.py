@@ -4,13 +4,12 @@ import plotly.express as px
 
 st.title("Visualizador de Excel Monetario 📊")
 
-# Subida del archivo
 archivo_excel = st.file_uploader("Subí tu archivo Excel (.xlsx)", type=["xlsx"])
 
 if archivo_excel:
     try:
-        # LEER desde la hoja "DATOS | DATA" y SALTEAR las primeras 5 filas
-        df = pd.read_excel(archivo_excel, sheet_name="DATOS | DATA", skiprows=5)
+        # ⚠️ ACÁ VA EL CAMBIO CRÍTICO: salta solo 1 fila
+        df = pd.read_excel(archivo_excel, sheet_name="DATOS | DATA", skiprows=1)
 
         st.subheader("Vista previa de los datos")
         st.dataframe(df.head())
