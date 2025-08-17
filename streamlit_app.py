@@ -13,8 +13,6 @@ df["Fecha"] = pd.to_datetime(df["Fecha"])
 df["Reservas Internacionales"] = pd.to_numeric(df["Reservas Internacionales"], errors="coerce")
 df = df.dropna()
 
-# Mostrar tabla (opcional)
-st.dataframe(df)
 
 # Gráfico de líneas
 st.line_chart(df.set_index("Fecha")["Reservas Internacionales"])
