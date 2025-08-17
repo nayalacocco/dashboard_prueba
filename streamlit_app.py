@@ -1,115 +1,122 @@
+# streamlit_app.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="Visualizador Económico", layout="wide")
+st.set_page_config(page_title="Visualizador Económico BCRA", layout="wide")
 st.title("Visualizador de Excel Monetario 📊")
 
-file = st.file_uploader("Subí tu Excel (.xlsx)", type=["xlsx"])
-
 # ---------- utilidades ----------
-def detect_date_col(df: pd.DataFrame) -> str | None:
-    # 1) candidatos por nombre
+def encontrar_fila_header(xlsx, sheet="DATOS | DATA", scan_filas=80) -> int | None:
+    """Busca la primera fila que contenga 'Date' o 'Fecha' (case-insensitive)."""
+    tmp = pd.read_excel(xlsx, sheet_name=sheet, header=None, nrows=scan_filas)
+    for i in range(len(tmp)):
+        row = tmp.iloc[i].astype(str).str.lower()
+        if row.str.contains("date").any() or row.str.contains("fecha").any():
+            return i
+    return None
+
+def detectar_columna_fecha(df: pd.DataFrame) -> str | None:
+    """Primero intenta por nombre; si no, elige la columna que mejor parsea a fecha."""
+    # candidatos por nombre
     keys = ["fecha", "date", "período", "periodo", "mes", "month", "día", "dia"]
-    cand = [c for c in df.columns if any(k in str(c).lower() for k in keys)]
+    candidatos = [c for c in df.columns if isinstance(c, str) and any(k in c.lower() for k in keys)]
 
-    def parse_ratio(series) -> float:
-        s = pd.to_datetime(series, errors="coerce", dayfirst=True)
-        return float(s.notna().mean())
+    def ratio_fecha(s: pd.Series) -> float:
+        try:
+            parsed = pd.to_datetime(s, errors="coerce", dayfirst=True)
+            return float(parsed.notna().mean())
+        except Exception:
+            return 0.0
 
-    # 2) quedarme con los que realmente parsean a fecha
-    cand = [c for c in cand if parse_ratio(df[c]) > 0.5]
+    candidatos = sorted(candidatos, key=lambda c: ratio_fecha(df[c]), reverse=True)
+    if candidatos and ratio_fecha(df[candidatos[0]]) > 0:
+        return candidatos[0]
 
-    if cand:
-        # el mejor por ratio
-        cand.sort(key=lambda c: parse_ratio(df[c]), reverse=True)
-        return cand[0]
+    # probar todas
+    ratios = {c: ratio_fecha(df[c]) for c in df.columns}
+    best = max(ratios, key=ratios.get)
+    return best if ratios[best] > 0 else None
 
-    # 3) no hubo por nombre: probar TODAS y elegir la más “fecha”
-    scores = {c: parse_ratio(df[c]) for c in df.columns}
-    best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else None
-
-
-def coerce_numeric_cols(df: pd.DataFrame) -> list[str]:
+def convertir_numericas(df: pd.DataFrame) -> list[str]:
+    """Devuelve lista de columnas numéricas; intenta convertir texto con separadores."""
     num_cols = df.select_dtypes(include="number").columns.tolist()
     if num_cols:
         return num_cols
 
-    # intentar convertir texto con miles y coma decimal
-    converted = []
+    convertidas = []
     for c in df.columns:
         s = df[c].astype(str).str.replace("\u00a0", "", regex=False)  # NBSP
+        # quitar miles '.', cambiar coma decimal por '.'
         s = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
-        s = pd.to_numeric(s, errors="coerce")
-        if s.notna().mean() > 0.5:
-            df[c] = s
-            converted.append(c)
-    return converted
+        s_num = pd.to_numeric(s, errors="coerce")
+        if s_num.notna().mean() > 0.5:
+            df[c] = s_num
+            convertidas.append(c)
+    return convertidas
 
 # ---------- app ----------
-if file:
-    try:
-        # Cargar HOJA correcta (siempre tiene ese nombre en tu archivo)
-        raw = pd.read_excel(file, sheet_name="DATOS | DATA", header=None)
+archivo = st.file_uploader("Subí tu Excel (.xlsx) con la hoja **'DATOS | DATA'**", type=["xlsx"])
 
-        # Hallar fila de encabezados buscando dónde aparece “Date/Fecha”
-        header_row = None
-        for i in range(min(60, len(raw))):  # escaneo primeras 60 filas
-            row = raw.iloc[i].astype(str).str.lower()
-            if row.str.contains("date").any() or row.str_contains("fecha", regex=False).any():
-                header_row = i
-                break
-        if header_row is None:
-            st.error("No encontré una fila de encabezados (no aparece 'Date'/'Fecha').")
-            st.write("Vista preliminar:", raw.head(15))
-            st.stop()
+if not archivo:
+    st.info("Esperando archivo…")
+    st.stop()
 
-        df = pd.read_excel(file, sheet_name="DATOS | DATA", header=header_row)
-        # tirar columnas totalmente vacías y filas vacías
-        df = df.dropna(axis=1, how="all").dropna(how="all")
-        df.columns = df.columns.map(lambda x: str(x).strip())
+# 1) detectar fila de encabezados
+fila_header = encontrar_fila_header(archivo, sheet="DATOS | DATA")
+if fila_header is None:
+    st.error("No pude encontrar una fila de encabezados con 'Date' o 'Fecha' en la hoja 'DATOS | DATA'.")
+    st.stop()
 
-        # detectar columna fecha
-        fecha_col = detect_date_col(df)
-        if not fecha_col:
-            st.error("No pude detectar una columna de fecha en el Excel.")
-            st.write("Columnas:", list(df.columns))
-            st.stop()
+# 2) leer datos usando esa fila como header
+df = pd.read_excel(archivo, sheet_name="DATOS | DATA", header=fila_header)
+# tirar columnas/filas completamente vacías
+df = df.dropna(axis=1, how="all").dropna(how="all")
+# normalizar nombres
+df.columns = [str(c).strip() for c in df.columns]
 
-        # normalizar fecha
-        df[fecha_col] = pd.to_datetime(df[fecha_col], errors="coerce", dayfirst=True)
-        df = df.dropna(subset=[fecha_col]).sort_values(fecha_col)
+st.subheader("Vista previa")
+st.dataframe(df.head(), use_container_width=True)
 
-        # detectar/convertir numéricas
-        numeric_cols = coerce_numeric_cols(df)
-        if not numeric_cols:
-            st.error("No encontré columnas numéricas para graficar.")
-            st.write("Columnas:", list(df.columns))
-            st.stop()
+# 3) detectar y normalizar columna de fecha
+fecha_col = detectar_columna_fecha(df)
+if not fecha_col:
+    st.error("No pude detectar una columna de fecha. Columnas leídas: " + ", ".join(map(str, df.columns)))
+    st.stop()
 
-        st.sidebar.header("Parámetros")
-        ycol = st.sidebar.selectbox("Variable a graficar", numeric_cols)
+df[fecha_col] = pd.to_datetime(df[fecha_col], errors="coerce", dayfirst=True)
+df = df.dropna(subset=[fecha_col]).sort_values(fecha_col)
 
-        # filtro de fechas (por defecto: todo)
-        dmin, dmax = df[fecha_col].min().date(), df[fecha_col].max().date()
-        f_ini, f_fin = st.sidebar.date_input("Rango de fechas", (dmin, dmax), min_value=dmin, max_value=dmax)
-        mask = (df[fecha_col] >= pd.to_datetime(f_ini)) & (df[fecha_col] <= pd.to_datetime(f_fin))
-        dff = df.loc[mask]
+# 4) detectar/convertir numéricas
+numeric_cols = convertir_numericas(df)
+if not numeric_cols:
+    st.error("No encontré columnas numéricas para graficar luego de convertir formatos.")
+    st.write("Columnas detectadas:", list(df.columns))
+    st.stop()
 
-        st.subheader(f"Serie: {ycol}")
-        fig = px.line(dff, x=fecha_col, y=ycol, labels={fecha_col: "Fecha", ycol: ycol})
-        st.plotly_chart(fig, use_container_width=True)
+# 5) UI: selección de variable y filtro de fechas
+st.sidebar.header("Parámetros")
+ycol = st.sidebar.selectbox("Variable a graficar", numeric_cols, index=0)
 
-        # métrica último dato
-        if not dff.empty:
-            last = dff.iloc[-1]
-            st.metric("Último valor", f"{last[ycol]:,.0f}", help=f"Fecha: {last[fecha_col].date()}")
-
-        with st.expander("Ver tabla"):
-            st.dataframe(dff, use_container_width=True)
-
-    except Exception as e:
-        st.error(f"Error al procesar el archivo: {e}")
+dmin, dmax = df[fecha_col].min().date(), df[fecha_col].max().date()
+rango = st.sidebar.date_input("Rango de fechas", (dmin, dmax), min_value=dmin, max_value=dmax)
+if isinstance(rango, tuple) and len(rango) == 2:
+    f_ini, f_fin = pd.to_datetime(rango[0]), pd.to_datetime(rango[1])
 else:
-    st.info("Subí tu archivo Excel (.xlsx) con la hoja **'DATOS | DATA'**.")
+    f_ini, f_fin = pd.to_datetime(dmin), pd.to_datetime(dmax)
+
+mask = (df[fecha_col] >= f_ini) & (df[fecha_col] <= f_fin)
+dff = df.loc[mask]
+
+# 6) gráfico
+st.subheader(f"Serie: {ycol}")
+fig = px.line(dff, x=fecha_col, y=ycol, labels={fecha_col: "Fecha", ycol: ycol})
+st.plotly_chart(fig, use_container_width=True)
+
+# 7) métrica último dato + tabla opcional
+if not dff.empty:
+    last = dff.iloc[-1]
+    st.metric("Último valor", f"{last[ycol]:,.0f}", help=f"Fecha: {last[fecha_col].date()}")
+
+with st.expander("Ver datos"):
+    st.dataframe(dff[[fecha_col, ycol]], use_container_width=True)
