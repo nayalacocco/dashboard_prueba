@@ -11,6 +11,7 @@ import textwrap
 st.set_page_config(page_title="Macro Argentina – BCRA", layout="wide", page_icon="🇦🇷")
 st.title("🇦🇷 Macro Argentina – BCRA (API v3, auto-actualizado)")
 
+# Archivos generados por el workflow
 CSV_LONG = Path("data/monetarias_long.csv")
 CAT_JSON  = Path("data/monetarias_catalogo.json")
 
@@ -32,7 +33,7 @@ if not CSV_LONG.exists() or not CAT_JSON.exists():
     st.stop()
 
 df = load_data()
-_ = load_catalog()  # por ahora no lo usamos en el front
+_ = load_catalog()  # (el catálogo no se usa en UI por ahora)
 
 vars_disponibles = sorted(df["descripcion"].dropna().unique().tolist())
 if not vars_disponibles:
@@ -86,44 +87,58 @@ legend_bottom = dict(orientation="h", yanchor="bottom", y=-0.35, xanchor="center
 margins = dict(t=50, b=120)
 HEIGHT = 650
 
-# Generador de ticks "agradables" (nice ticks) para un rango y cantidad deseada
-def nice_ticks(vmin, vmax, max_ticks=6):
+# Nice steps/ticks (1, 2, 2.5, 5 × 10^k)
+def nice_step(raw_step):
+    exp = np.floor(np.log10(raw_step)) if raw_step > 0 else 0
+    frac = raw_step / (10 ** exp) if raw_step > 0 else 1
+    if frac <= 1:
+        nf = 1
+    elif frac <= 2:
+        nf = 2
+    elif frac <= 2.5:
+        nf = 2.5
+    elif frac <= 5:
+        nf = 5
+    else:
+        nf = 10
+    return nf * (10 ** exp)
+
+def nice_ticks(vmin, vmax, max_ticks=7):
     if vmin == vmax:
         if vmin == 0:
-            return [0]
-        # expandimos un poco si rango degenerado
-        vmin *= 0.9
-        vmax *= 1.1
+            return np.array([0.0])
+        vmin *= 0.9; vmax *= 1.1
     rng = vmax - vmin
-    if rng <= 0:
-        rng = abs(vmin) if vmin != 0 else 1.0
-    # tamaño de paso aproximado
-    raw_step = rng / max(1, (max_ticks - 1))
-    exp = np.floor(np.log10(raw_step))
-    frac = raw_step / (10 ** exp)
-    # elegimos 1, 2, 2.5, 5 o 10
-    if frac <= 1:
-        nice_frac = 1
-    elif frac <= 2:
-        nice_frac = 2
-    elif frac <= 2.5:
-        nice_frac = 2.5
-    elif frac <= 5:
-        nice_frac = 5
-    else:
-        nice_frac = 10
-    step = nice_frac * (10 ** exp)
-    tick_min = np.floor(vmin / step) * step
-    tick_max = np.ceil(vmax / step) * step
-    # generamos y redondeamos a evitar ruido flotante
-    ticks = np.arange(tick_min, tick_max + 0.5 * step, step)
+    raw = rng / max(1, (max_ticks - 1))
+    step = nice_step(raw)
+    t0 = np.floor(vmin / step) * step
+    t1 = np.ceil(vmax / step) * step
+    ticks = np.arange(t0, t1 + 0.5*step, step)
+    exp = np.floor(np.log10(step)) if step > 0 else 0
     return np.round(ticks, int(max(0, -exp)))
 
-# Mapea ticks del eje izquierdo al rango del eje derecho preservando la posición relativa
-def map_ticks(left_ticks, lmin, lmax, rmin, rmax):
-    if lmax == lmin:
-        return [rmin] * len(left_ticks)
-    return rmin + (rmax - rmin) * (left_ticks - lmin) / (lmax - lmin)
+def nice_step_for_count(vmin, vmax, count):
+    if count <= 1:
+        return vmax - vmin if vmax != vmin else 1.0
+    raw = (vmax - vmin) / (count - 1)
+    return nice_step(raw)
+
+# Construye ticks redondos para eje derecho alineados a grilla izquierda,
+# ajustando el rango derecho si hace falta para que quepan.
+def aligned_right_ticks_round(left_ticks, rmin_data, rmax_data):
+    N = len(left_ticks)
+    if N <= 1:
+        return np.array([rmin_data]), (rmin_data, rmax_data)
+    step_r = nice_step_for_count(rmin_data, rmax_data, N)      # paso redondo deseado
+    # primera marca derecha: lo más "redondo" posible cerca de rmin_data
+    r0 = np.floor(rmin_data / step_r) * step_r
+    r_end = r0 + step_r * (N - 1)
+    # si no alcanza para cubrir el máximo de datos, corremos hacia arriba
+    if r_end < rmax_data:
+        r_end = np.ceil(rmax_data / step_r) * step_r
+        r0 = r_end - step_r * (N - 1)
+    ticks_r = r0 + step_r * np.arange(N)
+    return ticks_r, (r0, r_end)
 
 # ---------- Gráficos ----------
 if len(seleccion) == 1:
@@ -166,16 +181,10 @@ else:
         fig.add_trace(go.Scatter(x=s2.index, y=s2, name=wrap_label(var2), mode="lines"), secondary_y=True)
         fig.update_xaxes(title_text="Fecha")
 
-        # RANGOS de cada eje
+        # Eje izquierdo: ticks "agradables" + grilla
         lmin, lmax = float(np.nanmin(s1)), float(np.nanmax(s1))
-        rmin, rmax = float(np.nanmin(s2)), float(np.nanmax(s2))
-
-        # Ticks "agradables" del eje izquierdo
         left_ticks = nice_ticks(lmin, lmax, max_ticks=7)
-        # Ticks correspondientes en el eje derecho (alineados en pantalla)
-        right_ticks = map_ticks(left_ticks, lmin, lmax, rmin, rmax)
 
-        # Eje izq: muestra grilla y usa nuestros ticks
         fig.update_yaxes(
             title_text="Eje izq",
             secondary_y=False,
@@ -183,14 +192,19 @@ else:
             tickmode="array",
             tickvals=left_ticks,
         )
-        # Eje der: NO dibuja grilla; usa tickvals mapeados para alinear con la grilla izq
+
+        # Eje derecho: construimos ticks REDONDOS alineados a la grilla izquierda
+        rmin, rmax = float(np.nanmin(s2)), float(np.nanmax(s2))
+        right_ticks, (r0, r1) = aligned_right_ticks_round(left_ticks, rmin, rmax)
+
         fig.update_yaxes(
             title_text="Eje der",
             secondary_y=True,
-            showgrid=False,
+            showgrid=False,           # no dibuja grilla (se ve la del izq)
             tickmode="array",
             tickvals=right_ticks,
-            tickformat=",",   # formato con miles
+            tickformat=".2s",         # 41k, 35k, etc.
+            range=[r0, r1],           # rango coherente con los ticks
         )
 
         fig.update_layout(
