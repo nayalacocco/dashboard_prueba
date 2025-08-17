@@ -1,0 +1,942 @@
+[
+  {
+    "id": 1,
+    "descripcion": "Reservas Internacionales del BCRA (en millones de dólares - cifras provisorias sujetas a cambio de valuación)",
+    "unidad": ""
+  },
+  {
+    "id": 4,
+    "descripcion": "Tipo de Cambio Minorista ($ por USD) Comunicación B 9791 - Promedio vendedor",
+    "unidad": ""
+  },
+  {
+    "id": 5,
+    "descripcion": "Tipo de Cambio Mayorista ($ por USD) Comunicación A 3500 - Referencia",
+    "unidad": ""
+  },
+  {
+    "id": 7,
+    "descripcion": "BADLAR en pesos de bancos privados (en % n.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 8,
+    "descripcion": "TM20 en pesos de bancos privados (en % n.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 9,
+    "descripcion": "Tasas de interés de las operaciones de pase activas para el BCRA, a 1 día de plazo (en % n.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 10,
+    "descripcion": "Tasas de interés de las operaciones de pase pasivas para el BCRA, a 1 día de plazo (en % n.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 11,
+    "descripcion": "Tasas de interés por préstamos entre entidades financiera privadas (BAIBAR) (en % n.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 12,
+    "descripcion": "Tasas de interés por depósitos a 30 días de plazo en entidades financieras (en % n.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 13,
+    "descripcion": "Tasa de interés de préstamos por adelantos en cuenta corriente",
+    "unidad": ""
+  },
+  {
+    "id": 14,
+    "descripcion": "Tasa de interés de préstamos personales",
+    "unidad": ""
+  },
+  {
+    "id": 15,
+    "descripcion": "Base monetaria - Total (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 16,
+    "descripcion": "Circulación monetaria (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 17,
+    "descripcion": "Billetes y monedas en poder del público (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 18,
+    "descripcion": "Efectivo en entidades financieras (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 19,
+    "descripcion": "Depósitos de los bancos en cta. cte. en pesos en el BCRA (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 21,
+    "descripcion": "Depósitos en efectivo en las entidades financieras - Total (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 22,
+    "descripcion": "En cuentas corrientes (neto de utilización FUCO) (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 23,
+    "descripcion": "En Caja de ahorros (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 24,
+    "descripcion": "A plazo (incluye inversiones y excluye CEDROS) (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 25,
+    "descripcion": "M2 privado, promedio móvil de 30 días, variación interanual (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 26,
+    "descripcion": "Préstamos de las entidades financieras al sector privado (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 27,
+    "descripcion": "Inflación mensual (variación en %)",
+    "unidad": ""
+  },
+  {
+    "id": 28,
+    "descripcion": "Inflación interanual (variación en % i.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 29,
+    "descripcion": "Inflación esperada - REM próximos 12 meses - MEDIANA (variación en % i.a)",
+    "unidad": ""
+  },
+  {
+    "id": 30,
+    "descripcion": "CER (Base 2.2.2002=1)",
+    "unidad": ""
+  },
+  {
+    "id": 31,
+    "descripcion": "Unidad de Valor Adquisitivo (UVA) (en pesos -con dos decimales-, base 31.3.2016=14.05)",
+    "unidad": ""
+  },
+  {
+    "id": 32,
+    "descripcion": "Unidad de Vivienda (UVI) (en pesos -con dos decimales-, base 31.3.2016=14.05)",
+    "unidad": ""
+  },
+  {
+    "id": 35,
+    "descripcion": "BADLAR en pesos de bancos privados (en % e.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 40,
+    "descripcion": "Índice para Contratos de Locación (ICL-Ley 27.551, con dos decimales, base 30.6.20=1)",
+    "unidad": ""
+  },
+  {
+    "id": 41,
+    "descripcion": "Tasas de interés de las operaciones de pase pasivas para el BCRA, a 1 día de plazo (en % e.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 42,
+    "descripcion": "Pases pasivos para el BCRA - Saldos (en millones de pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 43,
+    "descripcion": "Tasa de interés para uso de la Justicia – Comunicado P 14290 | Base 01/04/1991 (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 44,
+    "descripcion": "TAMAR en pesos de bancos privados (en % n.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 45,
+    "descripcion": "TAMAR en pesos de bancos privados (en % e.a.)",
+    "unidad": ""
+  },
+  {
+    "id": 46,
+    "descripcion": "Total de factores de explicación de la variación de la Base Monetaria (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 47,
+    "descripcion": "Efecto monetario de las compras netas de divisas al sector privado y otros (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 48,
+    "descripcion": "Efecto monetario de las compras netas de divisas al Tesoro Nacional (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 49,
+    "descripcion": "Efecto monetario de los adelantos transitorios al Tesoro Nacional (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 50,
+    "descripcion": "Efecto monetario de las transferencia de utilidades al Tesoro Nacional (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 51,
+    "descripcion": "Efecto monetario del resto de operaciones con el Tesoro Nacional  (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 52,
+    "descripcion": "Efecto monetario de las operaciones de pases (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 53,
+    "descripcion": "Efecto monetario de las LELIQ y NOTALIQ (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 54,
+    "descripcion": "Efecto monetario de los redescuentos y adelantos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 55,
+    "descripcion": "Efecto monetario de los intereses, primas y remuneración de cuentas corrientes asociados a op. de pases, LELIQ, NOTALIQ, redescuentos y adel. (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 56,
+    "descripcion": "Efecto monetario de las LEBAC y NOBAC (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 57,
+    "descripcion": "Efecto monetario del rescate de cuasimonedas (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 58,
+    "descripcion": "Efecto monetario de las operaciones con Letras Fiscales de Liquidez (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 59,
+    "descripcion": "Otras operaciones que explican la variación de la base monetaria (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 60,
+    "descripcion": "Variación diaria de billetes y monedas en poder del público (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 61,
+    "descripcion": "Variación diaria de billetes y monedas en entidades financieras (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 62,
+    "descripcion": "Variación diaria de cheques cancelatorios (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 63,
+    "descripcion": "Variación diaria de cuentas corrientes en pesos en el BCRA  (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 64,
+    "descripcion": "Variación diaria de la base monetaria (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 65,
+    "descripcion": "Variación diaria de cuasimonedas (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 66,
+    "descripcion": "Variación diaria de la base monetaria más variación diaria de cuasimonedas (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 67,
+    "descripcion": "Saldo de billetes y monedas en poder del público (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 68,
+    "descripcion": "Saldo de billetes y monedas en entidades financieras (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 69,
+    "descripcion": "Saldo de cheques cancelatorios (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 70,
+    "descripcion": "Saldo de cuentas corrientes en pesos en el BCRA (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 71,
+    "descripcion": "Saldo de base monetaria (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 72,
+    "descripcion": "Saldo de cuasimonedas (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 73,
+    "descripcion": "Saldo de base monetaria más cuasimonedas (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 74,
+    "descripcion": "Saldo de reservas internacionales (excluidas asignaciones DEG 2009, en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 75,
+    "descripcion": "Saldo de oro, divisas, colocaciones a plazo y otros activos de reserva (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 76,
+    "descripcion": "Saldo de divisas-pase pasivo en dólares con el exterior concertados en 2016 (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 77,
+    "descripcion": "Total de variación diaria de las reservas internacionales (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 78,
+    "descripcion": "Variación diaria de reservas internacionales por compra de divisas (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 79,
+    "descripcion": "Variación diaria de reservas internacionales por operaciones con organismos internacionales (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 80,
+    "descripcion": "Variación diaria de reservas internacionales por otras operaciones del sector público (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 81,
+    "descripcion": "Variación diaria de reservas internacionales por efectivo mínimo (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 82,
+    "descripcion": "Variación diaria de reservas internacionales por otras operaciones no incluidas en otros rubros (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 83,
+    "descripcion": "Saldo de Asignaciones de DEGs del año 2009 (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 84,
+    "descripcion": "Tipo de cambio peso / dólar estadounidense de valuación contable",
+    "unidad": ""
+  },
+  {
+    "id": 85,
+    "descripcion": "Saldo de depósitos en pesos en cuentas corrientes de los sectores público y privado no financieros (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 86,
+    "descripcion": "Saldo de depósitos en pesos en cajas de ahorro de los sectores público y privado no financieros (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 87,
+    "descripcion": "Saldo de depósitos en pesos a plazo no ajustables por CER/UVAs de los sectores público y privado no financieros (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 88,
+    "descripcion": "Saldo de depósitos en pesos a plazo ajustables por CER/UVAs de los sectores público y privado no financieros (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 89,
+    "descripcion": "Saldo de otros depósitos en pesos de los sectores público y privado no financieros (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 90,
+    "descripcion": "Saldo de CEDROS con CER de los sectores público y privado no financieros (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 91,
+    "descripcion": "Saldo de los depósitos en pesos de los sectores público y privados no financieros más CEDROS (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 92,
+    "descripcion": "Saldo de BODEN de los sectores público y privado no financieros (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 93,
+    "descripcion": "Saldo de los depósitos en pesos de los sectores público y privados no financieros más CEDRO más BODEN (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 94,
+    "descripcion": "Saldo de depósitos en pesos cuentas corrientes del sector privado no financiero (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 95,
+    "descripcion": "Saldo de depósitos en pesos en cajas de ahorro del sector privado no financiero (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 96,
+    "descripcion": "Saldo de depósitos en pesos a plazo no ajustables por CER/UVAs del sector privado no financiero (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 97,
+    "descripcion": "Saldo de depósitos en pesos a plazo ajustables por CER/UVAs del sector privado no financiero (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 98,
+    "descripcion": "Saldo de otros depósitos en pesos del sector privado no financiero (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 99,
+    "descripcion": "Saldo de CEDROS con CER del sector privado no financiero (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 100,
+    "descripcion": "Saldo de los depósitos en pesos del sector privado no financiero más CEDROS (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 101,
+    "descripcion": "Saldo de BODEN del sector privado no financiero (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 102,
+    "descripcion": "Saldo de los depósitos en pesos del sector privado no financiero más CEDRO más BODEN (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 103,
+    "descripcion": "Saldo de depósitos en dólares de los sectores público y privado no financieros, expresados en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 104,
+    "descripcion": "Saldo de depósitos en dólares del sector privado no financiero, expresados en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 105,
+    "descripcion": "Saldo de depósitos en pesos y en dólares de los sectores público y privado no financieros, expresados en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 106,
+    "descripcion": "Saldo de depósitos en pesos y dólares del sector privado no financiero, expresados en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 107,
+    "descripcion": "Saldo de depósitos en dólares de los sectores público y privado no financieros, expresados en dólares (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 108,
+    "descripcion": "Saldo de depósitos en dólares del sector privado no financiero, expresados en dólares (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 109,
+    "descripcion": "Saldo del agregado monetario M2 (billetes y monedas en poder del público y depósitos en cuenta corriente y en caja de ahorro en pesos correspondientes al sector privado y al sector público, en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 110,
+    "descripcion": "Saldo de préstamos otorgados al sector privado mediante adelantos en cuenta corriente en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 111,
+    "descripcion": "Saldo de préstamos otorgados al sector privado mediante documentos en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 112,
+    "descripcion": "Saldo de préstamos hipotecarios en pesos otorgados al sector privado (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 113,
+    "descripcion": "Saldo de préstamos prendarios en pesos otorgados al sector privado (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 114,
+    "descripcion": "Saldo de préstamos personales en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 115,
+    "descripcion": "Saldo de préstamos en pesos mediante tarjetas de crédito otorgados al sector privado (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 116,
+    "descripcion": "Saldo de otros préstamos en pesos otorgados al sector privado (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 117,
+    "descripcion": "Saldo total de préstamos al sector privado en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 118,
+    "descripcion": "Saldo de préstamos otorgados al sector privado mediante adelantos en cuenta corriente en dólares (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 119,
+    "descripcion": "Saldo de préstamos otorgados al sector privado mediante documentos en dólares (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 120,
+    "descripcion": "Saldo de préstamos hipotecarios en dólares otorgados al sector privado (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 121,
+    "descripcion": "Saldo de préstamos prendarios en dólares otorgados al sector privado (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 122,
+    "descripcion": "Saldo de préstamos personales en dólares (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 123,
+    "descripcion": "Saldo de préstamos en dólares mediante tarjetas de crédito otorgados al sector privado(en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 124,
+    "descripcion": "Saldo de otros préstamos en dólares otorgados al sector privado (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 125,
+    "descripcion": "Saldo total de préstamos otorgados al sector privado en dólares (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 126,
+    "descripcion": "Saldo total de préstamos otorgados al sector privado en dólares, expresado en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 127,
+    "descripcion": "Saldo total de préstamos otorgados del sector privado en pesos y moneda extranjera, expresado en pesos (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 128,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos, de 30-44 días , total de operaciones,TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 129,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos, de 30-44 días, hasta $100.000, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 130,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos, de 30-44 días, hasta $100.000, TEA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 131,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos, de 30-44 días, de más de $1.000.000, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 132,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en dólares, de 30-44 días, total de operaciones, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 133,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en dólares, de 30-44 días, hasta $100.000, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 134,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en dólares, de 30-44 días, de mas de USD1.000.000, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 135,
+    "descripcion": "TAMAR total bancos, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 136,
+    "descripcion": "TAMAR de bancos privados,TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 137,
+    "descripcion": "TAMAR de bancos privados,TEA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 138,
+    "descripcion": "BADLAR total bancos, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 139,
+    "descripcion": "BADLAR de bancos privados,TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 140,
+    "descripcion": "BADLAR de bancos privados,TEA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 141,
+    "descripcion": "TM20 total bancos, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 142,
+    "descripcion": "TM20 de bancos privados, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 143,
+    "descripcion": "TM20 de bancos privados, TEA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 144,
+    "descripcion": "Tasa de interés de préstamos personales en pesos, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 145,
+    "descripcion": "Tasa de interés por adelantos en cuenta corriente en pesos, con acuerdo de 1 a 7 días y de 10 millones o más, a empresas del sector privado, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 146,
+    "descripcion": "Tasa de interés por operaciones de préstamos entre entidades financieras locales privadas (BAIBAR, TNA, en %)",
+    "unidad": ""
+  },
+  {
+    "id": 147,
+    "descripcion": "Monto de operaciones de préstamos entre entidades financieras locales privados (BAIBAR, en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 148,
+    "descripcion": "Tasa de interes por operaciones de préstamos entre entidades financieras locales, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 149,
+    "descripcion": "Monto de operaciones de préstamos entre entidades financieras locales (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 150,
+    "descripcion": "Tasa de interes por operaciones de pases entre terceros a 1 día, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 151,
+    "descripcion": "Monto de operaciones de pases entre terceros (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 152,
+    "descripcion": "Saldo total de pases pasivos para el BCRA (incluye pases pasivos con FCI, en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 153,
+    "descripcion": "Saldo de pases pasivos del BCRA con fondos comunes de inversión (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 154,
+    "descripcion": "Saldo de pases activos para el BCRA (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 155,
+    "descripcion": "Saldo de LELIQ y NOTALIQ (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 156,
+    "descripcion": "Saldo de LEBAC y NOBAC en Pesos, LEGAR y LEMIN  (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 157,
+    "descripcion": "Saldo de LEBAC y NOBAC en Pesos de Entidades Financieras (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 158,
+    "descripcion": "Saldo de LEBAC en dólares, LEDIV y BOPREAL  (en millones de USD)",
+    "unidad": ""
+  },
+  {
+    "id": 159,
+    "descripcion": "Saldo de NOCOM (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 160,
+    "descripcion": "Tasas de interés de política monetaria, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 161,
+    "descripcion": "Tasas de interés de política monetaria, TEA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 162,
+    "descripcion": "Tasas de interés del BCRA para pases pasivos en pesos a 1 día, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 163,
+    "descripcion": "Tasas de interés del BCRA para pases pasivos en pesos a 7 días, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 164,
+    "descripcion": "Tasas de interés del BCRA para pases activos en pesos a 1 días, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 165,
+    "descripcion": "Tasas de interés del BCRA para pases activos en pesos a 7 días, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 166,
+    "descripcion": "Tasas de interés de LEBAC en Pesos / LELIQ de 1 mes, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 167,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 2 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 168,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 3 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 169,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 4 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 170,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 5 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 171,
+    "descripcion": "Tasas de interés de LEBAC en Pesos / LELIQ a 6 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 172,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 7 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 173,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 8 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 174,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 9 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 175,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 10 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 176,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 11 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 177,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 12 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 178,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 18 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 179,
+    "descripcion": "Tasas de interés de LEBAC en Pesos de 24 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 180,
+    "descripcion": "Tasas de interés de LEBAC en pesos ajustables por CER de 6 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 181,
+    "descripcion": "Tasas de interés de LEBAC en pesos ajustables por CER de 12 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 182,
+    "descripcion": "Tasas de interés de LEBAC en pesos ajustables por CER de 18 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 183,
+    "descripcion": "Tasas de interés de LEBAC en pesos ajustables por CER de 24 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 184,
+    "descripcion": "Tasas de interés de LEBAC en dólares, con liquidación en pesos, de 1 mes, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 185,
+    "descripcion": "Tasas de interés de LEBAC en dólares, con liquidación en pesos, de 6 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 186,
+    "descripcion": "Tasas de interés de LEBAC en dólares, con liquidación en pesos, de 12 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 187,
+    "descripcion": "Tasas de interés de LEBAC en dólares, con liquidación en dólares, de 1 mes, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 188,
+    "descripcion": "Tasas de interés de LEBAC en dólares, con liquidación en dólares, de 3 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 189,
+    "descripcion": "Tasas de interés de LEBAC en dólares, con liquidación en dólares, de 6 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 190,
+    "descripcion": "Tasas de interés de LEBAC en dólares, con liquidación en dólares, de 12 meses, TNA (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 191,
+    "descripcion": "Margen sobre BADLAR Bancos Privados de NOBAC de 9 meses (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 192,
+    "descripcion": "Margen sobre Bancos Privados de NOBAC de 12 meses (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 193,
+    "descripcion": "Margen sobre BADLAR Total de NOBAC de 2 Años (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 194,
+    "descripcion": "Margen sobre BADLAR Bancos Privados de NOBAC de 2 Años (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 195,
+    "descripcion": "Margen sobre Tasa de Politica Monetaria de NOTALIQ en Pesos de 190 dias (en %)",
+    "unidad": ""
+  },
+  {
+    "id": 196,
+    "descripcion": "Saldo de Letras Fiscales de Liquidez en cartera de entidades financieras, en valor técnico (en millones de $)",
+    "unidad": ""
+  },
+  {
+    "id": 197,
+    "descripcion": "Saldo de M2 Transaccional del Sector Privado (expresado en millones de Pesos)",
+    "unidad": ""
+  },
+  {
+    "id": 198,
+    "descripcion": "Otros",
+    "unidad": ""
+  }
+]
