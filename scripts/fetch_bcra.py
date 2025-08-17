@@ -1,65 +1,46 @@
-# scripts/fetch_bcra.py
-import json
 import requests
 import pandas as pd
-from datetime import date
 from pathlib import Path
+import sys
 
-BASE = "https://api.bcra.gob.ar/estadisticas/v3.0"
-LISTADO = f"{BASE}/monetarias"
-
-OUT = Path("data")
-OUT.mkdir(parents=True, exist_ok=True)
-CSV_PATH = OUT / "base_monetaria.csv"
-JSON_PATH = OUT / "base_monetaria.json"
-
-session = requests.Session()
-
-def get(url, **kw):
-    # En GitHub Actions podemos desactivar verificación SSL (el server del BCRA falla)
-    return session.get(url, timeout=60, verify=False, **kw)
-
-def find_base_monetaria_id():
-    r = get(LISTADO)
-    r.raise_for_status()
-    payload = r.json()
-    items = payload.get("results", payload)
-    # Preferir “Base Monetaria Total”
-    for it in items:
-        desc = (it.get("descripcion") or "").lower()
-        if "base monetaria total" in desc or "total monetary base" in desc:
-            return it["idVariable"], it["descripcion"]
-    # fallback: cualquier “Base Monetaria”
-    for it in items:
-        desc = (it.get("descripcion") or "").lower()
-        if "base monetaria" in desc:
-            return it["idVariable"], it["descripcion"]
-    raise RuntimeError("No se encontró 'Base Monetaria' en el catálogo.")
-
-def fetch_series(id_var):
-    url = f"{BASE}/monetarias/{id_var}"
-    r = get(url, params={"desde": "1990-01-01", "hasta": date.today().isoformat(), "limit": 300000})
-    r.raise_for_status()
-    payload = r.json()
-    rows = payload.get("results", payload)
-    out = []
-    for p in rows:
-        fecha = p.get("fecha") or p.get("d")
-        valor = p.get("valor") or p.get("v")
-        if fecha is None or valor is None:
-            continue
-        out.append({"fecha": fecha, "valor": valor})
-    return out
+BASE_URL = "https://api.bcra.gob.ar/estadisticas/v1"
 
 def main():
-    id_var, desc = find_base_monetaria_id()
-    serie = fetch_series(id_var)
+    try:
+        print("🔎 Consultando catálogo...")
+        resp = requests.get(f"{BASE_URL}/principalesvariables", verify=False, timeout=30)
+        resp.raise_for_status()
+        catalogo = resp.json()
+        print(f"✅ Catálogo recibido con {len(catalogo)} variables")
 
-    df = pd.DataFrame(serie)
-    df.to_csv(CSV_PATH, index=False, encoding="utf-8")
-    with open(JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(serie, f, ensure_ascii=False, indent=2)
-    print(f"OK ({len(df)} puntos) -> {CSV_PATH} | {JSON_PATH} [{desc}]")
+        # Mostramos los primeros 10 nombres para debug
+        for v in catalogo[:10]:
+            print(f"- {v['IdVariable']}: {v['Descripcion']}")
+
+        # Buscamos la base monetaria
+        base = next((v for v in catalogo if "base monetaria" in v["Descripcion"].lower()), None)
+        if not base:
+            print("❌ No se encontró la variable 'Base Monetaria'")
+            sys.exit(1)
+
+        print(f"✅ Variable encontrada: {base}")
+
+        # Bajamos la serie
+        resp2 = requests.get(f"{BASE_URL}/serie/{base['IdVariable']}", verify=False, timeout=30)
+        resp2.raise_for_status()
+        data = resp2.json()
+        print(f"✅ Serie descargada con {len(data)} puntos")
+
+        df = pd.DataFrame(data)
+        OUT = Path("data")
+        OUT.mkdir(parents=True, exist_ok=True)
+        CSV_PATH = OUT / "base_monetaria.csv"
+        df.to_csv(CSV_PATH, index=False)
+        print(f"💾 Guardado en {CSV_PATH}")
+
+    except Exception as e:
+        print(f"❌ Error en fetch_bcra: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
