@@ -1,72 +1,52 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import matplotlib.pyplot as plt
 
-# Cargar el archivo Excel
+st.set_page_config(layout="wide", page_title="Visualizador Económico")
+
+# Carga de datos
 @st.cache_data
 def cargar_datos():
-    df_raw = pd.read_excel("infomondia.xlsx", sheet_name="DATOS | DATA", header=None)
-
-    # Encabezados en filas específicas
-    lvl1 = df_raw.iloc[17].fillna(method="ffill")
-    lvl2 = df_raw.iloc[19].fillna(method="ffill")
-    lvl3 = df_raw.iloc[25].fillna("")
-    columnas = lvl1 + " | " + lvl2 + " | " + lvl3
-
-    df = df_raw.iloc[27:].copy()
-    df.columns = columnas
-    df = df.reset_index(drop=True)
-
-    return df
+    df = pd.read_excel("infomondia.xlsx", sheet_name="DATOS | DATA")
+    df.columns = df.columns.str.strip()  # limpia espacios en nombres de columnas
+    df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0], errors='coerce')  # convierte primera columna a datetime
+    return df.dropna(subset=[df.columns[0]])  # descarta filas sin fecha
 
 df = cargar_datos()
+columna_fecha = df.columns[0]
+columnas_disponibles = df.columns[1:]
 
-# Extraer columnas que sean fechas
-columnas_fecha = [col for col in df.columns if "Fecha" in col]
+# Sidebar: selección de variable y fechas
+st.sidebar.header("Parámetros")
+variable = st.sidebar.selectbox("Seleccioná la variable a graficar", columnas_disponibles)
 
-# Relacionar fechas con sus variables
-series_disponibles = []
-for col in df.columns:
-    if "Fecha" not in col and "|" in col:
-        bloque = col.split(" | ")[0]
-        nombre = col.split(" | ")[1]
-        codigo = col.split(" | ")[2]
-        series_disponibles.append({
-            "etiqueta": f"{bloque} - {nombre} ({codigo})",
-            "columna_valor": col,
-        })
+fecha_min = df[columna_fecha].min()
+fecha_max = df[columna_fecha].max()
 
-# Sidebar de selección
-st.sidebar.title("📊 Selección de serie")
-serie_sel = st.sidebar.selectbox("Elegí una variable", [s["etiqueta"] for s in series_disponibles])
+rango_fecha = st.sidebar.date_input(
+    "Filtrar por rango de fechas (opcional)",
+    value=(fecha_min, fecha_max),
+    min_value=fecha_min,
+    max_value=fecha_max
+)
 
-# Buscar la columna asociada
-col_valor = next(s["columna_valor"] for s in series_disponibles if s["etiqueta"] == serie_sel)
+# Filtro de fechas
+if isinstance(rango_fecha, tuple):
+    fecha_inicio, fecha_fin = rango_fecha
+else:
+    fecha_inicio = fecha_min
+    fecha_fin = fecha_max
 
-# Inferir la columna de fecha
-bloque = col_valor.split(" | ")[0]
-col_fecha = next((col for col in columnas_fecha if bloque in col), None)
-
-# Limpiar y convertir fechas y valores
-df = df[[col_fecha, col_valor]].dropna()
-df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
-df[col_valor] = pd.to_numeric(df[col_valor], errors='coerce')
-df = df.dropna()
-
-# Rango de fechas para filtrar
-fecha_min, fecha_max = df[col_fecha].min(), df[col_fecha].max()
-rango_fechas = st.sidebar.date_input("Filtrar fechas", [fecha_min, fecha_max])
-
-# Aplicar filtro si se elige rango distinto
-if len(rango_fechas) == 2:
-    df = df[(df[col_fecha] >= pd.to_datetime(rango_fechas[0])) & (df[col_fecha] <= pd.to_datetime(rango_fechas[1]))]
+df_filtrado = df[(df[columna_fecha] >= pd.to_datetime(fecha_inicio)) & (df[columna_fecha] <= pd.to_datetime(fecha_fin))]
 
 # Gráfico
-st.title("Evolución de la Serie Seleccionada")
-fig = px.line(df, x=col_fecha, y=col_valor, title=serie_sel)
-fig.update_layout(xaxis_title="Fecha", yaxis_title="Valor", height=500)
-st.plotly_chart(fig, use_container_width=True)
+st.title("Visualizador de Series Económicas")
+st.subheader(f"Variable seleccionada: {variable}")
 
-# Mostrar tabla opcional
-with st.expander("🔍 Ver datos en tabla"):
-    st.dataframe(df, use_container_width=True)
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.plot(df_filtrado[columna_fecha], df_filtrado[variable], marker='o', linestyle='-')
+ax.set_xlabel("Fecha")
+ax.set_ylabel(variable)
+ax.grid(True)
+
+st.pyplot(fig)
