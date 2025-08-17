@@ -1,20 +1,30 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+from bcraapi import estadisticas
 
-st.title("Dashboard Macro Argentina 🇦🇷")
-st.header("Reservas Internacionales del BCRA (USD millones)")
+st.header("Base Monetaria – API oficial BCRA 🇦🇷")
 
-# Leer el archivo Excel
-df = pd.read_excel("reservas_bcra.xlsx", engine="openpyxl")
+# Obtener lista de variables monetarias disponibles
+variables = estadisticas.monetarias()
 
-# Limpiar columnas
-df["Fecha"] = pd.to_datetime(df["Fecha"])
-df["Reservas Internacionales"] = pd.to_numeric(df["Reservas Internacionales"], errors="coerce")
+# Filtrar la que sea Base Monetaria
+base_monetaria = variables[variables["descripcion"].str.contains("Base Monetaria", case=False)].iloc[0]
+id_var = base_monetaria["idVariable"]
+
+# Descargar los datos de Base Monetaria
+df = estadisticas.monetarias(id_variable=id_var, desde="2024-01-01")
+
+# Convertir columnas
+df["fecha"] = pd.to_datetime(df["fecha"], dayfirst=True)
+df["valor"] = pd.to_numeric(df["valor"].str.replace(".", "").str.replace(",", "."), errors="coerce")
 df = df.dropna()
 
+# Gráfico
+st.line_chart(df.set_index("fecha")["valor"])
 
-# Gráfico de líneas
-st.line_chart(df.set_index("Fecha")["Reservas Internacionales"])
+# Último dato como métrica
+ultimo_valor = df["valor"].iloc[-1]
+ultima_fecha = df["fecha"].iloc[-1].strftime("%d/%m/%Y")
+st.metric("Último valor", f"${ultimo_valor:,.0f}", help=f"Fecha: {ultima_fecha}")
 
-st.caption("Fuente: BCRA - Carga manual")
+st.caption("Fuente: API oficial BCRA (principales variables monetarias)")
