@@ -30,17 +30,16 @@ def load_catalog():
 df = load_data()
 cat = load_catalog()
 
-# Variables que efectivamente tienen datos
+# Variables disponibles (con datos válidos)
 vars_con_datos = sorted(df["descripcion"].dropna().unique().tolist())
-
 if not vars_con_datos:
     st.error("No hay variables con datos válidos. Verificá data/monetarias_long.csv")
     st.stop()
 
-# Sugerencia por defecto
+# -------------------- Sidebar --------------------
+st.sidebar.header("Parámetros")
 default_1 = next((v for v in vars_con_datos if "base monetaria" in v.lower()), vars_con_datos[0])
 
-st.sidebar.header("Parámetros")
 seleccion = st.sidebar.multiselect(
     "Seleccioná 1 o 2 variables",
     options=vars_con_datos,
@@ -52,16 +51,15 @@ if not seleccion:
     st.info("Elegí al menos una variable para graficar.")
     st.stop()
 
-# Armamos dataset filtrado
+# Dataset filtrado
 df_sel = df[df["descripcion"].isin(seleccion)].copy()
 df_sel["fecha"] = pd.to_datetime(df_sel["fecha"], errors="coerce")
 df_sel = df_sel.dropna(subset=["fecha"]).sort_values(["descripcion", "fecha"])
-
 if df_sel.empty:
     st.warning("No hay datos con fechas válidas para la selección.")
     st.stop()
 
-# Rango de fechas sugerido en función de las series elegidas
+# Rango de fechas sugerido por los datos presentes
 fmin = df_sel["fecha"].min().date()
 fmax = df_sel["fecha"].max().date()
 
@@ -76,27 +74,36 @@ if pd.to_datetime(d_ini) > pd.to_datetime(d_fin):
 
 mask = (df_sel["fecha"] >= pd.to_datetime(d_ini)) & (df_sel["fecha"] <= pd.to_datetime(d_fin))
 df_sel = df_sel.loc[mask]
-
 if df_sel.empty:
     st.info("No hay observaciones en el rango elegido.")
     st.stop()
 
-# -------------------- 1 sola variable --------------------
+# -------------------- Gráficos --------------------
+legend_bottom = dict(
+    orientation="h",
+    yanchor="bottom",
+    y=-0.3,          # debajo del chart
+    xanchor="center",
+    x=0.5
+)
+margins = dict(t=50, b=100)
+
 if len(seleccion) == 1:
     titulo = seleccion[0]
+    serie = df_sel[df_sel["descripcion"] == seleccion[0]]
     fig = px.line(
-        df_sel[df_sel["descripcion"] == seleccion[0]],
+        serie,
         x="fecha",
         y="valor",
         title=titulo,
         labels={"fecha": "Fecha", "valor": "Valor"},
     )
+    fig.update_layout(legend=legend_bottom, margin=margins)
     st.plotly_chart(fig, use_container_width=True)
 
-    last = df_sel[df_sel["descripcion"] == seleccion[0]].iloc[-1]
+    last = serie.iloc[-1]
     st.metric("Último dato visible", f"{last['valor']:,.0f}", help=f"Fecha: {last['fecha'].date()}")
 
-# -------------------- 2 variables --------------------
 else:
     var1, var2 = seleccion
     st.subheader(f"Comparación: {var1} vs {var2}")
@@ -104,11 +111,10 @@ else:
     modo = st.radio(
         "Modo de comparación",
         ["Mismo eje", "Doble eje Y", "Base 100 (desde el primer dato del rango)"],
-        index=1,  # por defecto, doble eje Y
+        index=1,
         horizontal=False,
     )
 
-    # Pivot para alinear por fecha
     wide = df_sel.pivot_table(index="fecha", columns="descripcion", values="valor", aggfunc="last").sort_index()
     s1 = wide[var1].dropna()
     s2 = wide[var2].dropna()
@@ -121,7 +127,13 @@ else:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=s1.index, y=s1.values, name=var1, mode="lines"))
         fig.add_trace(go.Scatter(x=s2.index, y=s2.values, name=var2, mode="lines"))
-        fig.update_layout(title=f"{var1} y {var2} (mismo eje)", xaxis_title="Fecha", yaxis_title="Valor")
+        fig.update_layout(
+            title=f"{var1} y {var2} (mismo eje)",
+            xaxis_title="Fecha",
+            yaxis_title="Valor",
+            legend=legend_bottom,
+            margin=margins,
+        )
 
     elif modo == "Doble eje Y":
         fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -130,10 +142,13 @@ else:
         fig.update_xaxes(title_text="Fecha")
         fig.update_yaxes(title_text=var1, secondary_y=False)
         fig.update_yaxes(title_text=var2, secondary_y=True)
-        fig.update_layout(title=f"{var1} vs {var2} (doble eje Y)")
+        fig.update_layout(
+            title=f"{var1} vs {var2} (doble eje Y)",
+            legend=legend_bottom,
+            margin=margins,
+        )
 
     else:  # Base 100
-        # Se normaliza al primer dato disponible de cada serie dentro del rango
         b1 = s1.iloc[0]
         b2 = s2.iloc[0]
         s1_norm = (s1 / b1) * 100
@@ -141,11 +156,17 @@ else:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=s1_norm.index, y=s1_norm.values, name=f"{var1} (Base=100)"))
         fig.add_trace(go.Scatter(x=s2_norm.index, y=s2_norm.values, name=f"{var2} (Base=100)"))
-        fig.update_layout(title=f"{var1} vs {var2} (Base 100)", xaxis_title="Fecha", yaxis_title="Índice (Base 100)")
+        fig.update_layout(
+            title=f"{var1} vs {var2} (Base 100)",
+            xaxis_title="Fecha",
+            yaxis_title="Índice (Base 100)",
+            legend=legend_bottom,
+            margin=margins,
+        )
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Métricas de último dato visible
+    # Métricas
     c1, c2 = st.columns(2)
     last1 = s1.dropna().iloc[-1]
     last2 = s2.dropna().iloc[-1]
@@ -154,7 +175,7 @@ else:
     with c2:
         st.metric(f"Último {var2}", f"{last2:,.0f}", help=f"Fecha: {s2.dropna().index[-1].date()}")
 
-# (Opcional) descarga del recorte
+# -------------------- Descarga --------------------
 with st.expander("Descargar CSV (rango filtrado y selección)"):
     st.download_button(
         "Descargar",
