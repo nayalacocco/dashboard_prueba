@@ -1,46 +1,34 @@
+import streamlit as st
 import pandas as pd
 
-# Cargar el archivo Excel
-archivo = 'infomondia.xlsx'
-df_raw = pd.read_excel(archivo, sheet_name='DATOS | DATA', header=None)
+st.set_page_config(page_title="Base Monetaria (BCRA)", layout="wide")
+st.title("Base Monetaria – BCRA (datos oficiales, auto-actualizado)")
 
-# Buscar la fila donde está el encabezado que contiene "Base monetaria total"
-fila_header = None
-for i, row in df_raw.iterrows():
-    if row.astype(str).str.contains("Base monetaria total", case=False).any():
-        fila_header = i
-        break
+# Cambiá <USER> y <REPO> por los tuyos
+RAW = "https://raw.githubusercontent.com/<USER>/<REPO>/main/data/base_monetaria.json"
 
-if fila_header is None:
-    raise ValueError("No se encontró el encabezado de 'Base monetaria total'.")
+@st.cache_data(ttl=3600)
+def load():
+    df = pd.read_json(RAW)
+    # normalización por si vienen strings
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce", utc=True).dt.tz_localize(None)
+    df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
+    df = df.dropna().sort_values("fecha")
+    return df
 
-# Usar esa fila como encabezado
-df = pd.read_excel(archivo, sheet_name='DATOS | DATA', header=fila_header)
+df = load()
 
-# Eliminar columnas que están completamente vacías
-df = df.dropna(axis=1, how='all')
+# Filtro de fechas (opcional; por defecto toda la serie)
+c1, c2 = st.columns(2)
+with c1:
+    start = st.date_input("Desde", value=df["fecha"].min().date(), min_value=df["fecha"].min().date(), max_value=df["fecha"].max().date())
+with c2:
+    end = st.date_input("Hasta", value=df["fecha"].max().date(), min_value=df["fecha"].min().date(), max_value=df["fecha"].max().date())
 
-# Renombrar la columna de fecha si hace falta
-fecha_col = [col for col in df.columns if "date" in str(col).lower()][0]
-df.rename(columns={fecha_col: "Fecha"}, inplace=True)
+mask = (df["fecha"] >= pd.to_datetime(start)) & (df["fecha"] <= pd.to_datetime(end))
+dfv = df.loc[mask]
 
-# Eliminar filas sin fecha
-df = df[df["Fecha"].notna()]
+st.line_chart(dfv.set_index("fecha")["valor"])
+st.metric("Último dato", f"{df.iloc[-1]['valor']:,.0f}", help=f"Fecha: {df.iloc[-1]['fecha'].date()}")
 
-# Asegurar que la columna de fecha esté en formato datetime
-df["Fecha"] = pd.to_datetime(df["Fecha"], errors='coerce')
-
-# Eliminar filas con fechas no válidas
-df = df[df["Fecha"].notna()]
-
-# Extraer columna de interés
-columna_bm = [col for col in df.columns if "Base monetaria total" in str(col)][0]
-df_bm = df[["Fecha", columna_bm]].copy()
-df_bm.rename(columns={columna_bm: "Base Monetaria Total"}, inplace=True)
-
-# Opcional: convertir a numérico y eliminar NaNs
-df_bm["Base Monetaria Total"] = pd.to_numeric(df_bm["Base Monetaria Total"], errors='coerce')
-df_bm.dropna(inplace=True)
-
-# Mostrar o retornar
-print(df_bm.head())
+st.caption("Fuente: API oficial BCRA (cosechada por GitHub Actions).")
