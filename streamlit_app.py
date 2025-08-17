@@ -2,16 +2,16 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.title("Mi Dashboard Fácil y Online")
+st.title("Dashboard Macro Argentina 🇦🇷")
+st.header("Reservas Internacionales del BCRA (USD millones)")
 
-data = pd.DataFrame({
-    'Categoría': ['A', 'B', 'C'],
-    'Valor': [10, 23, 17]
-})
+# Leer Excel (requiere openpyxl, ya está incluido en Streamlit Cloud)
+df = pd.read_excel("reservas_bcra.xlsx", engine="openpyxl", parse_dates=["fecha"])
 
-st.subheader("Gráfico de barras de prueba")
-fig, ax = plt.subplots()
-ax.bar(data['Categoría'], data['Valor'], color='skyblue')
-st.pyplot(fig)
+# Mostrar tabla
+st.dataframe(df)
 
-st.success("¡Funciona online! 🚀")
+# Mostrar gráfico
+st.line_chart(df.set_index("fecha")["reservas_usd"])
+
+st.caption("Fuente: Carga manual desde Excel - BCRA")
