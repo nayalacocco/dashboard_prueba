@@ -5,13 +5,14 @@ import matplotlib.pyplot as plt
 st.title("Dashboard Macro Argentina 🇦🇷")
 st.header("Reservas Internacionales del BCRA (USD millones)")
 
-# Leer Excel (requiere openpyxl, ya está incluido en Streamlit Cloud)
-df = pd.read_excel("reservas_bcra.xlsx", engine="openpyxl", parse_dates=["fecha"])
+# Leer Excel y convertir columna 'Fecha' a datetime
+df = pd.read_excel("reservas_bcra.xlsx", engine="openpyxl")
+df["Fecha"] = pd.to_datetime(df["Fecha"])
 
 # Mostrar tabla
 st.dataframe(df)
 
-# Mostrar gráfico
-st.line_chart(df.set_index("fecha")["reservas_usd"])
+# Mostrar gráfico (usamos 'Fecha' como índice y 'Reservas Internacionales' como serie)
+st.line_chart(df.set_index("Fecha")["Reservas Internacionales"])
 
-st.caption("Fuente: Carga manual desde Excel - BCRA")
+st.caption("Fuente: BCRA - Carga manual")
