@@ -99,6 +99,7 @@ def card(title: str, body_md: str, page_path: str | None = None, icon: str = "ðŸ
         st.markdown('</div>', unsafe_allow_html=True)
         
 def kpi(label: str, value: str, help: str | None = None):
+    st.metric(label=label, value=value, help=help_text)
     st.markdown(f"""
     <div class="card" style="padding:12px">
       <div class="muted">{label}</div>
