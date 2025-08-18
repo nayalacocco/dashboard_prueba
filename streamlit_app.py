@@ -1,5 +1,19 @@
+import os, sys
 import streamlit as st
-from ui import inject_css, card, theme_switcher
+
+# --- Import robusto para ui.py ---
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+if APP_DIR not in sys.path:
+    sys.path.insert(0, APP_DIR)
+
+try:
+    from ui import inject_css, card, theme_switcher
+except Exception:
+    import ui
+    inject_css = ui.inject_css
+    card = ui.card
+    theme_switcher = ui.theme_switcher
+# ----------------------------------
 
 st.set_page_config(page_title="Macro AR – Panel", layout="wide", page_icon="📊")
 inject_css()
