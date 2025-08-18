@@ -11,6 +11,8 @@ from bcra_utils import (
     resample_series,
     nice_ticks,
     aligned_right_ticks_round,
+    GOVERNMENT_PERIODS
+
 )
 
 st.set_page_config(page_title="BCRA – Reservas y tipo de cambio", layout="wide")
@@ -115,6 +117,8 @@ q_ini, q_fin = apply_quick_range(wide_all.index, rango_lbl)
 
 # También soporte filtro fino si querés (reutilizamos control común)
 # d_ini, d_fin, _ = range_controls(dmin, dmax, key="reservas_tc")
+dmin, dmax = wide_all.index.min(), wide_all.index.max()
+d_ini, d_fin, freq_label = range_controls(dmin, dmax, key="reservas_tc")
 # En esta vista usamos “rango rápido” únicamente:
 d_ini, d_fin = q_ini, q_fin
 
