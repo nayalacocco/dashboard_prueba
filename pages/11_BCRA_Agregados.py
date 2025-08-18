@@ -2,13 +2,13 @@
 import streamlit as st
 import plotly.express as px
 import pandas as pd
+import re
 
 from ui import inject_css, kpi, range_controls
 from bcra_utils import (
     load_bcra_long,
-    find_first,
     resample_series,
-    compute_kpis,   # KPIs robustos (MoM/YoY con mensual fin de mes + Δ en período visible)
+    compute_kpis,
 )
 
 st.set_page_config(page_title="BCRA – Agregados", layout="wide")
@@ -24,21 +24,57 @@ if df.empty:
     st.error("No encontré datos del BCRA. Corré el fetch (GitHub Actions) primero.")
     st.stop()
 
-vars_all = sorted(df["descripcion"].dropna().unique().tolist())
-
-# Preselecciones “inteligentes” (si no existen, se omiten)
-base = find_first(vars_all, "base", "monetaria")
-m1   = find_first(vars_all, "m1")
-m2   = find_first(vars_all, "m2", "privado")
-m3   = find_first(vars_all, "m3", "privado")
-circ = find_first(vars_all, "circulacion", "monetaria")
-
-opciones = [v for v in [base, m1, m2, m3, circ] if v] or vars_all
+# Normalizo descripciones
+df["descripcion"] = df["descripcion"].fillna("").astype(str)
 
 # -----------------------------
-# Selector de serie principal
+# Catálogo curado: solo agregados monetarios (niveles)
 # -----------------------------
-var = st.selectbox("Serie principal", opciones, index=0, help="Elegí qué agregado ver")
+INCLUDE_PATTERNS = [
+    r"\bbase\s+monetaria\b",
+    r"\bm1\b",
+    r"\bm2\b",
+    r"\bm3\b",
+    r"\bcirculaci[óo]n\s+monetaria\b",
+    r"\bcirculante\b",
+    r"\bm2\s+transaccional\b",
+]
+
+# Excluir tasas, variaciones/porcentajes, dólar/reservas y otros no-aggregados
+EXCLUDE_PATTERNS = [
+    r"\btasa\b|\binter[eé]s\b|\bbadlar\b|\bpases?\b|\bleliq\b|\bplazo\s+fijo\b",
+    r"%|\bvar\.\b|\bvariaci[óo]n\b|\bpromedio\b|\bm[óo]vil\b|\bi\.a\.\b|\bYoY\b|\bMoM\b",
+    r"\busd\b|\bd[oó]lar(es)?\b|\btipo\s+de\s+cambio\b|\breservas\b",
+    r"\bdep[oó]sitos\b|\bpr[ée]stamos\b",
+]
+
+inc_re = re.compile("|".join(INCLUDE_PATTERNS), re.IGNORECASE)
+exc_re = re.compile("|".join(EXCLUDE_PATTERNS), re.IGNORECASE)
+
+candidatas = sorted(
+    s for s in df["descripcion"].unique()
+    if inc_re.search(s) and not exc_re.search(s)
+)
+
+# Fallback sensato si por naming no matchean los regex
+if not candidatas:
+    posibles = [
+        "Base monetaria - Total (en millones de pesos)",
+        "M1 Privado",
+        "M2 Privado",
+        "M3 Privado",
+        "Circulación monetaria",
+        "M2 Transaccional del Sector Privado - miles de millones de $",
+    ]
+    candidatas = [s for s in posibles if s in set(df["descripcion"].unique())]
+    if not candidatas:
+        st.warning("No pude identificar agregados monetarios por nombre. Muestro toda la lista disponible.")
+        candidatas = sorted(df["descripcion"].unique().tolist())
+
+# -----------------------------
+# Selector de serie principal (curado)
+# -----------------------------
+var = st.selectbox("Serie principal", candidatas, index=0, help="Solo agregados monetarios en niveles.")
 
 # Serie completa (historia total)
 serie_full = (
@@ -84,7 +120,7 @@ fig.update_yaxes(showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside
 st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------
-# KPIs (una sola vez, robustos)
+# KPIs (MoM / YoY / Δ período)
 # -----------------------------
 mom, yoy, d_per = compute_kpis(serie_full, serie_vis)
 
