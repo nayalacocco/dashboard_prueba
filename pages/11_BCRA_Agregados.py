@@ -135,3 +135,25 @@ with col3:
             "(respeta la frecuencia elegida: diaria o fin de mes)."
         ),
     )
+
+from bcra_utils import compute_kpis
+from ui import kpi
+
+# ...
+
+mom, yoy, d_per = compute_kpis(serie_full, serie_vis, d_fin)
+
+fmt = lambda x: ("—" if x is None or pd.isna(x) else f"{x:,.2f}%")
+
+c1, c2, c3 = st.columns(3)
+with c1:
+    kpi("Mensual (MoM)", fmt(mom),
+        help_text="Variación porcentual del último dato mensual respecto al mes previo (siempre fin de mes).")
+with c2:
+    kpi("Interanual (YoY)", fmt(yoy),
+        help_text=("Variación porcentual del último dato mensual respecto al mismo período de hace 12 meses. "
+                   "Se muestra aunque el rango visible sea menor a 12 meses (si hay historia suficiente)."))
+with c3:
+    kpi("Δ en el período", fmt(d_per),
+        help_text=("Variación porcentual entre el primer y el último dato del rango visible "
+                   "(con la frecuencia actual del gráfico)."))
