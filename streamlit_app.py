@@ -7,17 +7,15 @@ if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
 
 try:
-    from ui import inject_css, card, theme_switcher
+    from ui import inject_css, card
 except Exception:
     import ui
     inject_css = ui.inject_css
     card = ui.card
-    theme_switcher = ui.theme_switcher
 # ----------------------------------
 
 st.set_page_config(page_title="Macro AR – Panel", layout="wide", page_icon="📊")
 inject_css()
-theme_switcher(location="sidebar")
 
 st.title("📊 Macro Argentina – Panel principal")
 st.caption("Navegá por módulos. Los datos del BCRA se actualizan automáticamente desde el repo.")
