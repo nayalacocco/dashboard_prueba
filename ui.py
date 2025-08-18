@@ -1,12 +1,25 @@
 # ui.py
+from __future__ import annotations
 import streamlit as st
+import pandas as pd
+from datetime import date
 from uuid import uuid4
 
-# ---------- tema / toggle (como ya lo tenés) ----------
-# ... deja igual get_theme(), set_theme(), theme_switcher(), plotly_template()
-
+# =========================
+#  Estilos / Layout global
+# =========================
 def inject_css():
+    """
+    Inyecta estilos para:
+      - fondo degradado
+      - grid de tarjetas (.tiles)
+      - tarjetas (.card)
+      - links de página (st.page_link) con estilo chip/botón
+      - ancho máximo del contenido
+    """
+    # Modo visual por sesión (si más adelante guardás preferencia, leé de session_state['theme'])
     theme = "dark" if st.session_state.get("theme", "dark") == "dark" else "light"
+
     if theme == "dark":
         bg, bg2, txt = "#0B1220", "#111827", "#E5E7EB"
         border, card_bg, muted = "rgba(229,231,235,.25)", "rgba(255,255,255,.04)", "rgba(229,231,235,.80)"
@@ -23,9 +36,8 @@ def inject_css():
         background: linear-gradient(180deg, {bg} 0%, {bg2} 100%) !important;
         color: {txt} !important;
     }}
-    /* ancho máximo del contenido para no “estirar” en pantallas grandes */
     .block-container {{
-        max-width: 1200px;
+        max-width: 1200px;           /* no se estira en pantallas enormes */
         padding-top: 1.1rem; padding-bottom: 2rem;
     }}
 
@@ -59,11 +71,12 @@ def inject_css():
     .card h3 {{ margin: 0; font-size: 1.06rem; line-height: 1.25; }}
     .muted {{ color: {muted}; font-size: 0.93rem; }}
 
-    /* Pie de tarjeta con el link alineado a la derecha */
+    /* Pie de tarjeta con link a la derecha */
     .card-footer {{
         display: flex; justify-content: flex-end; margin-top: 6px;
     }}
-    /* Estilo del page_link como “chip/botón” */
+
+    /* st.page_link como chip/botón */
     a[data-testid="stPageLink"] {{
         background: {chip_bg};
         border: 1px solid {border};
@@ -79,41 +92,45 @@ def inject_css():
     .js-plotly-plot {{ margin-bottom: 26px; }}
     </style>
     """, unsafe_allow_html=True)
+
+
+# =========================
+#  Tarjeta (mosaicos)
+# =========================
 def card(title: str, body_md: str, page_path: str | None = None, icon: str = "📈"):
+    """
+    Tarjeta con título, descripción y (si corresponde) link nativo st.page_link.
+    Compatible con Streamlit Cloud (sin JS custom).
+    """
+    cid = f"card-{uuid4().hex[:8]}"
     st.markdown(
         f"""
-        <div class="card">
+        <div class="card" id="{cid}">
           <h3>{icon} {title}</h3>
           <div class="muted">{body_md}</div>
-          <div class="card-footer">
-            {"<span></span>" if not page_path else ""}
-          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    # colocamos el link justo debajo (queda dentro del “footer” visualmente)
     if page_path:
         st.markdown('<div class="card-footer">', unsafe_allow_html=True)
         st.page_link(page_path, label="Abrir módulo", icon="↗️")
         st.markdown('</div>', unsafe_allow_html=True)
-        
-def kpi(label: str, value: str, help: str | None = None):
+
+
+# =========================
+#  KPI compacto con tooltip
+# =========================
+def kpi(label: str, value: str, help_text: str | None = None):
+    """KPI compacto con tooltip (usa st.metric)."""
     st.metric(label=label, value=value, help=help_text)
-    st.markdown(f"""
-    <div class="card" style="padding:12px">
-      <div class="muted">{label}</div>
-      <div style="font-size:1.35rem; font-weight:700; margin-top:2px">{value}</div>
-    </div>
-    """, unsafe_allow_html=True)
-    if help: st.caption(help)
-# --- ui.py (helpers de rango rápido + gobiernos) ---
 
-import pandas as pd
-from datetime import date
 
-# períodos presidenciales (inclusive)
-GOV_PERIODS = {
+# ===========================================
+#  Rango rápido + Gobiernos + Frecuencia
+# ===========================================
+# Períodos presidenciales (inclusive)
+GOV_PERIODS: dict[str, tuple[pd.Timestamp, pd.Timestamp]] = {
     "Néstor Kirchner (2003–2007)": (pd.Timestamp("2003-05-25"), pd.Timestamp("2007-12-10")),
     "Cristina Fernández I (2007–2011)": (pd.Timestamp("2007-12-10"), pd.Timestamp("2011-12-10")),
     "Cristina Fernández II (2011–2015)": (pd.Timestamp("2011-12-10"), pd.Timestamp("2015-12-10")),
@@ -123,6 +140,7 @@ GOV_PERIODS = {
 }
 
 def _quick_range_bounds(min_date: pd.Timestamp, max_date: pd.Timestamp, label: str) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Devuelve (start, end) según el rango rápido elegido."""
     md, MX = pd.Timestamp(min_date), pd.Timestamp(max_date)
     if label == "Máximo":
         return md, MX
@@ -141,11 +159,12 @@ def _quick_range_bounds(min_date: pd.Timestamp, max_date: pd.Timestamp, label: s
         return max(md, start_ytd), MX
     return md, MX
 
-def range_controls(min_date: pd.Timestamp, max_date: pd.Timestamp, key: str = ""):
+def range_controls(min_date: pd.Timestamp, max_date: pd.Timestamp, key: str = "") -> tuple[pd.Timestamp, pd.Timestamp, str]:
     """
-    Devuelve (start, end, freq_label) según selects.
-    - Frecuencia default: Diaria
-    - Si se elige Gobierno, tiene prioridad sobre 'Rango rápido'
+    Renderiza los tres controles superiores y retorna (start, end, freq_label).
+    - Rango rápido: Máximo, 1M, 3M, 6M, 1 año, YTD, 2 años
+    - Gobierno (opcional): períodos predefinidos (tienen prioridad si se elige)
+    - Frecuencia: Diaria / Mensual (fin de mes) — default: Diaria
     """
     c1, c2, c3 = st.columns([1.1, 1.1, 1.0])
     with c1:
@@ -163,14 +182,13 @@ def range_controls(min_date: pd.Timestamp, max_date: pd.Timestamp, key: str = ""
     with c3:
         freq = st.selectbox(
             "Frecuencia",
-            ["Diaria", "Mensual (fin de mes)"],  # default Diaria
-            index=0, key=f"freq_{key}",
+            ["Diaria", "Mensual (fin de mes)"],
+            index=0, key=f"freq_{key}",   # default Diaria
         )
 
-    # calcular rango
+    # calcular rango (gobierno tiene prioridad)
     if gov != "(ninguno)":
         start, end = GOV_PERIODS[gov]
-        # clamp al min/max de los datos
         start = max(pd.Timestamp(min_date), start)
         end = min(pd.Timestamp(max_date), end)
     else:
