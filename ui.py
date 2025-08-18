@@ -57,13 +57,14 @@ def inject_css():
 
 def card(title: str, body_md: str, page_path: str | None = None, icon: str = "馃搱"):
     """
-    Tarjeta clickable. Si 'page_path' viene, abre ese m贸dulo (multipage) al click.
+    Tarjeta con link nativo (st.page_link). Compatible con Streamlit Cloud.
     """
     cid = f"card-{uuid4().hex[:8]}"
-    onclick = f"window.location.href='?page={page_path}'" if page_path else ""
+
+    # marco visual de la tarjeta
     st.markdown(
         f"""
-        <div class="card" id="{cid}" onclick="{onclick}">
+        <div class="card" id="{cid}">
           <h3>{icon} {title}</h3>
           <div class="muted">{body_md}</div>
         </div>
@@ -71,6 +72,14 @@ def card(title: str, body_md: str, page_path: str | None = None, icon: str = "馃
         unsafe_allow_html=True,
     )
 
+    # si tiene p谩gina destino, muestro un link estilo bot贸n compacto
+    if page_path:
+        # bot贸n/link corto y claro
+        st.page_link(
+            page_path,
+            label="Abrir m贸dulo",
+            icon="鈫楋笍",
+        )
 def kpi(label: str, value: str, help: str | None = None):
     st.markdown(f"""
     <div class="card" style="padding:12px">
