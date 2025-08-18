@@ -106,3 +106,73 @@ def kpi(label: str, value: str, help: str | None = None):
     </div>
     """, unsafe_allow_html=True)
     if help: st.caption(help)
+# --- ui.py (helpers de rango rápido + gobiernos) ---
+
+import pandas as pd
+from datetime import date
+
+# períodos presidenciales (inclusive)
+GOV_PERIODS = {
+    "Néstor Kirchner (2003–2007)": (pd.Timestamp("2003-05-25"), pd.Timestamp("2007-12-10")),
+    "Cristina Fernández I (2007–2011)": (pd.Timestamp("2007-12-10"), pd.Timestamp("2011-12-10")),
+    "Cristina Fernández II (2011–2015)": (pd.Timestamp("2011-12-10"), pd.Timestamp("2015-12-10")),
+    "Mauricio Macri (2015–2019)": (pd.Timestamp("2015-12-10"), pd.Timestamp("2019-12-10")),
+    "Alberto Fernández (2019–2023)": (pd.Timestamp("2019-12-10"), pd.Timestamp("2023-12-10")),
+    "Javier Milei (2023– )": (pd.Timestamp("2023-12-10"), pd.Timestamp(date.today())),
+}
+
+def _quick_range_bounds(min_date: pd.Timestamp, max_date: pd.Timestamp, label: str) -> tuple[pd.Timestamp, pd.Timestamp]:
+    md, MX = pd.Timestamp(min_date), pd.Timestamp(max_date)
+    if label == "Máximo":
+        return md, MX
+    if label == "1M":
+        return max(md, MX - pd.DateOffset(months=1)), MX
+    if label == "3M":
+        return max(md, MX - pd.DateOffset(months=3)), MX
+    if label == "6M":
+        return max(md, MX - pd.DateOffset(months=6)), MX
+    if label == "1 año":
+        return max(md, MX - pd.DateOffset(years=1)), MX
+    if label == "2 años":
+        return max(md, MX - pd.DateOffset(years=2)), MX
+    if label == "YTD":
+        start_ytd = pd.Timestamp(year=MX.year, month=1, day=1)
+        return max(md, start_ytd), MX
+    return md, MX
+
+def range_controls(min_date: pd.Timestamp, max_date: pd.Timestamp, key: str = ""):
+    """
+    Devuelve (start, end, freq_label) según selects.
+    - Frecuencia default: Diaria
+    - Si se elige Gobierno, tiene prioridad sobre 'Rango rápido'
+    """
+    c1, c2, c3 = st.columns([1.1, 1.1, 1.0])
+    with c1:
+        quick = st.selectbox(
+            "Rango rápido",
+            ["Máximo", "1M", "3M", "6M", "1 año", "YTD", "2 años"],
+            index=0, key=f"quick_{key}",
+        )
+    with c2:
+        gov = st.selectbox(
+            "Gobierno (opcional)",
+            ["(ninguno)"] + list(GOV_PERIODS.keys()),
+            index=0, key=f"gov_{key}",
+        )
+    with c3:
+        freq = st.selectbox(
+            "Frecuencia",
+            ["Diaria", "Mensual (fin de mes)"],  # default Diaria
+            index=0, key=f"freq_{key}",
+        )
+
+    # calcular rango
+    if gov != "(ninguno)":
+        start, end = GOV_PERIODS[gov]
+        # clamp al min/max de los datos
+        start = max(pd.Timestamp(min_date), start)
+        end = min(pd.Timestamp(max_date), end)
+    else:
+        start, end = _quick_range_bounds(min_date, max_date, quick)
+
+    return start.normalize(), end.normalize(), freq
