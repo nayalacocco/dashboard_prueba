@@ -4,6 +4,8 @@ import plotly.express as px
 import pandas as pd
 from datetime import date
 from bcra_utils import load_bcra_long, resample_series, nice_ticks, aligned_right_ticks_round
+from ui import inject_css
+inject_css()
 
 st.set_page_config(page_title="BCRA – Comparador libre", layout="wide")
 st.title("🟦 Comparador libre")
