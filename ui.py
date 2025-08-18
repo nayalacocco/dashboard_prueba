@@ -1,53 +1,21 @@
 # ui.py
 import streamlit as st
+from uuid import uuid4
 
-# ---------- Estado y controles de tema ----------
-
-_DEF_THEME = "dark"  # default si el user nunca eligió
-
-def get_theme() -> str:
-    # Guarda el tema en session_state; si no existe, arranca en dark
-    if "theme" not in st.session_state:
-        st.session_state["theme"] = _DEF_THEME
-    return st.session_state["theme"]
-
-def set_theme(new_theme: str):
-    st.session_state["theme"] = "dark" if new_theme.lower() == "dark" else "light"
-    st.rerun()
-
-def theme_switcher(location: str = "sidebar"):
-    """Toggle Light/Dark (simulado)"""
-    theme = get_theme()
-    container = st.sidebar if location == "sidebar" else st
-    with container:
-        toggled = st.toggle("🌗 Modo oscuro", value=(theme == "dark"),
-                            help="Cambiá entre Dark y Light")
-        # Si el toggle y el estado difieren, cambiamos
-        if toggled and theme != "dark":
-            set_theme("dark")
-        elif not toggled and theme != "light":
-            set_theme("light")
-
-# ---------- Inyección de estilos ----------
+# ---------- tema / toggle (como ya lo tenés) ----------
+# ... deja igual get_theme(), set_theme(), theme_switcher(), plotly_template()
 
 def inject_css():
-    theme = get_theme()
+    theme = st.session_state.get("theme", "dark")
     if theme == "dark":
-        bg = "#0B1220"
-        bg2 = "#111827"
-        txt = "#E5E7EB"
-        border = "rgba(229,231,235,.25)"
-        card_bg = "rgba(255,255,255,.04)"
+        bg, bg2, txt = "#0B1220", "#111827", "#E5E7EB"
+        border, card_bg, muted = "rgba(229,231,235,.25)", "rgba(255,255,255,.04)", "rgba(229,231,235,.80)"
     else:
-        bg = "#FFFFFF"
-        bg2 = "#F7FAFC"
-        txt = "#0F172A"
-        border = "rgba(15,23,42,.12)"
-        card_bg = "#FFFFFF"
+        bg, bg2, txt = "#FFFFFF", "#F7FAFC", "#0F172A"
+        border, card_bg, muted = "rgba(15,23,42,.12)", "#FFFFFF", "rgba(15,23,42,.70)"
 
     st.markdown(f"""
     <style>
-    /* fondo y tipografía base */
     .stApp {{
         background: linear-gradient(180deg, {bg} 0%, {bg2} 100%) !important;
         color: {txt} !important;
@@ -55,47 +23,53 @@ def inject_css():
     .block-container {{ padding-top: 1.1rem; padding-bottom: 2rem; }}
     #MainMenu, footer {{ visibility: hidden; }}
 
-    /* títulos */
     h1, .stMarkdown h1 {{ font-size: 1.9rem; margin-bottom: .3rem; }}
     h2, .stMarkdown h2 {{ font-size: 1.3rem; margin-top: .8rem; margin-bottom: .2rem; }}
     h3, .stMarkdown h3 {{ font-size: 1.05rem; }}
 
-    /* cards */
+    /* --- Tarjetas clickeables --- */
     .card {{
+        width: 360px;                 /* compacto en pantallas grandes */
+        max-width: 100%;
         border-radius: 16px;
         border: 1px solid {border};
         background: {card_bg};
         backdrop-filter: blur(2px);
         box-shadow: 0 4px 16px rgba(15,23,42,0.06);
         padding: 16px 18px;
-        height: 100%;
+        cursor: pointer;
+        transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        display: flex; flex-direction: column; gap: 6px;
     }}
-    .card h3 {{ margin: 0 0 6px 0; font-size: 1.05rem; }}
-    .muted {{ opacity: .85; font-size: 0.92rem; }}
-
-    /* sidebar */
-    section[data-testid="stSidebar"] .block-container {{ padding-top: .8rem; }}
-    .side-section-title {{
-        font-weight: 700; font-size: .9rem; letter-spacing:.02em; margin: 6px 0 2px 0;
-        text-transform: uppercase; opacity: .8;
+    .card:hover {{
+        transform: translateY(-2px) scale(1.015);
+        box-shadow: 0 12px 30px rgba(2,6,23,.20);
+        border-color: rgba(14,165,233,.45);
     }}
+    .card h3 {{ margin: 0; font-size: 1.08rem; line-height: 1.2; }}
+    .muted {{ color: {muted}; font-size: 0.93rem; }}
 
+    /* contenedor de mosaicos */
+    .tiles {{ display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }}
     .js-plotly-plot {{ margin-bottom: 26px; }}
     </style>
     """, unsafe_allow_html=True)
 
-# ---------- Helpers de UI ----------
-
-def card(title: str, body_md: str, button_label: str | None = None,
-         page_path: str | None = None, icon: str = "➡️"):
-    st.markdown(f"""
-    <div class="card">
-      <h3>{title}</h3>
-      <div class="muted">{body_md}</div>
-    </div>
-    """, unsafe_allow_html=True)
-    if button_label and page_path:
-        st.page_link(page_path, label=button_label, icon=icon)
+def card(title: str, body_md: str, page_path: str | None = None, icon: str = "📈"):
+    """
+    Tarjeta clickable. Si 'page_path' viene, abre ese módulo (multipage) al click.
+    """
+    cid = f"card-{uuid4().hex[:8]}"
+    onclick = f"window.location.href='?page={page_path}'" if page_path else ""
+    st.markdown(
+        f"""
+        <div class="card" id="{cid}" onclick="{onclick}">
+          <h3>{icon} {title}</h3>
+          <div class="muted">{body_md}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 def kpi(label: str, value: str, help: str | None = None):
     st.markdown(f"""
@@ -105,9 +79,3 @@ def kpi(label: str, value: str, help: str | None = None):
     </div>
     """, unsafe_allow_html=True)
     if help: st.caption(help)
-
-# ---------- Plotly: template según tema ----------
-
-def plotly_template() -> str:
-    """Devolvé 'plotly_dark' o 'plotly_white' según el tema actual."""
-    return "plotly_dark" if get_theme() == "dark" else "plotly_white"
