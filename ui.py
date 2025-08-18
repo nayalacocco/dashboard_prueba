@@ -1,48 +1,63 @@
 # ui.py
 from __future__ import annotations
+import datetime as dt
+from typing import Tuple, Optional
+
+import plotly.io as pio
 import streamlit as st
-import pandas as pd
-from datetime import date
-from uuid import uuid4
 
-# =========================
-#  Estilos / Layout global
-# =========================
-def inject_css():
-    """
-    Inyecta estilos para:
-      - fondo degradado
-      - grid de tarjetas (.tiles)
-      - tarjetas (.card)
-      - links de página (st.page_link) con estilo chip/botón
-      - ancho máximo del contenido
-    """
-    # Modo visual por sesión (si más adelante guardás preferencia, leé de session_state['theme'])
-    theme = "dark" if st.session_state.get("theme", "dark") == "dark" else "light"
+# -------------------------------------------------------------------
+# Plotly template (paleta Atlas)
+# -------------------------------------------------------------------
+_ATLAS_TEMPLATE = dict(
+    layout=dict(
+        paper_bgcolor="#0A0E1A",
+        plot_bgcolor="#0A0E1A",
+        font=dict(color="#FFFFFF", family="Inter, system-ui, -apple-system, Segoe UI, Roboto"),
+        colorway=["#2563EB", "#34D399", "#3B82F6", "#F59E0B", "#EC4899"],
+        xaxis=dict(
+            gridcolor="#1F2937",
+            zeroline=False,
+            linecolor="#E5E7EB",
+            ticks="outside",
+            tickcolor="#E5E7EB",
+        ),
+        yaxis=dict(
+            gridcolor="#1F2937",
+            zeroline=False,
+            linecolor="#E5E7EB",
+            ticks="outside",
+            tickcolor="#E5E7EB",
+        ),
+        legend=dict(
+            bgcolor="rgba(0,0,0,0)",
+            orientation="h",
+            y=-0.2,
+            x=0.5,
+            xanchor="center",
+        ),
+        margin=dict(t=30, r=60, b=80, l=70),
+    )
+)
+pio.templates["atlas_dark"] = _ATLAS_TEMPLATE
+pio.templates.default = "atlas_dark"
 
-    if theme == "dark":
-        bg, bg2, txt = "#0B1220", "#111827", "#E5E7EB"
-        border, card_bg, muted = "rgba(229,231,235,.25)", "rgba(255,255,255,.04)", "rgba(229,231,235,.80)"
-        chip_bg = "rgba(255,255,255,.06)"
-    else:
-        bg, bg2, txt = "#FFFFFF", "#F7FAFC", "#0F172A"
-        border, card_bg, muted = "rgba(15,23,42,.12)", "#FFFFFF", "rgba(15,23,42,.70)"
-        chip_bg = "#F1F5F9"
 
-    def inject_css():
+# -------------------------------------------------------------------
+# CSS global (branding Atlas + mosaicos + fixes)
+# -------------------------------------------------------------------
+def inject_css() -> None:
     st.markdown(
         """
         <style>
         /* Ocultar menú y footer */
         #MainMenu, footer { visibility: hidden; }
 
-        /* Fondo general */
+        /* Fondo general + tipografía */
         .stApp {
             background-color: #0A0E1A;
             color: #FFFFFF;
         }
-
-        /* Contenedor */
         .block-container {
             max-width: 1200px;
             padding-top: 1.1rem; 
@@ -50,19 +65,35 @@ def inject_css():
         }
 
         /* Headers */
-        h1, h2, h3, h4 {
-            color: #FFFFFF;
-        }
+        h1, h2, h3, h4 { color: #FFFFFF; }
         h1, .stMarkdown h1 { font-size: 1.9rem; margin-bottom: .3rem; }
         h2, .stMarkdown h2 { font-size: 1.3rem; margin-top: .8rem; margin-bottom: .2rem; }
         h3, .stMarkdown h3 { font-size: 1.05rem; }
 
         /* Texto secundario */
-        .stMarkdown, label, .stSelectbox, .stMultiSelect {
+        .stMarkdown, label, .stSelectbox, .stMultiSelect, .stRadio, .stSlider {
             color: #9CA3AF !important;
         }
 
-        /* GRID de mosaicos */
+        /* Botones */
+        .stButton>button {
+            background: linear-gradient(90deg, #0D1B52, #2563EB);
+            color: white;
+            border-radius: 8px;
+            border: none;
+        }
+        .stButton>button:hover {
+            background: linear-gradient(90deg, #2563EB, #3B82F6);
+        }
+
+        /* Inputs */
+        .stSelectbox, .stMultiSelect, .stTextInput, .stDateInput, .stNumberInput, .stSlider {
+            background-color: #111827 !important;
+            border-radius: 8px !important;
+            color: #FFFFFF !important;
+        }
+
+        /* GRID de mosaicos (home) */
         .tiles {
             display: flex; flex-wrap: wrap; gap: 20px;
             justify-content: center; align-items: stretch;
@@ -83,15 +114,13 @@ def inject_css():
         .card:hover {
             transform: translateY(-2px);
             box-shadow: 0 14px 30px rgba(2,6,23,.20);
-            border-color: rgba(37,99,235,.45); /* azul Atlas */
+            border-color: rgba(37,99,235,.45);
         }
         .card h3 { margin: 0; font-size: 1.06rem; line-height: 1.25; }
         .muted { color: #9CA3AF; font-size: 0.93rem; }
 
         /* Pie de tarjeta con link */
-        .card-footer {
-            display: flex; justify-content: flex-end; margin-top: 6px;
-        }
+        .card-footer { display: flex; justify-content: flex-end; margin-top: 6px; }
         a[data-testid="stPageLink"] {
             background: #111827;
             border: 1px solid #1F2937;
@@ -105,130 +134,141 @@ def inject_css():
             border-color: rgba(37,99,235,.55);
         }
 
-        /* Botones */
-        .stButton>button {
-            background: linear-gradient(90deg, #0D1B52, #2563EB);
-            color: white;
-            border-radius: 8px;
-            border: none;
-        }
-        .stButton>button:hover {
-            background: linear-gradient(90deg, #2563EB, #3B82F6);
-        }
-
-        /* Selectores */
-        .stSelectbox, .stMultiSelect, .stRadio, .stSlider {
-            background-color: #111827;
-            border-radius: 8px;
-            color: #FFFFFF;
-        }
-
         /* Plotly margin fix */
         .js-plotly-plot { margin-bottom: 26px; }
+
+        /* KPIs */
+        .kpi-box {
+            background: #111827;
+            border: 1px solid #1F2937;
+            border-radius: 12px;
+            padding: 14px 16px;
+        }
+        .kpi-title { color: #9CA3AF; font-size: 0.9rem; margin-bottom: 6px; }
+        .kpi-value { color: #FFFFFF; font-size: 1.6rem; font-weight: 600; }
+        .kpi-help { color: #9CA3AF; font-size: 0.85rem; }
         </style>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
 
-# =========================
-#  Tarjeta (mosaicos)
-# =========================
-def card(title: str, body_md: str, page_path: str | None = None, icon: str = "📈"):
-    """
-    Tarjeta con título, descripción y (si corresponde) link nativo st.page_link.
-    Compatible con Streamlit Cloud (sin JS custom).
-    """
-    cid = f"card-{uuid4().hex[:8]}"
+# -------------------------------------------------------------------
+# Tarjeta de la home
+# -------------------------------------------------------------------
+def card(title: str, body_md: str, page_path: Optional[str], icon: str = "📊") -> None:
     st.markdown(
         f"""
-        <div class="card" id="{cid}">
-          <h3>{icon} {title}</h3>
-          <div class="muted">{body_md}</div>
-        </div>
+        <div class="card">
+            <h3>{icon} {title}</h3>
+            <div class="muted">{body_md}</div>
+            <div class="card-footer">
         """,
         unsafe_allow_html=True,
     )
     if page_path:
-        st.markdown('<div class="card-footer">', unsafe_allow_html=True)
-        st.page_link(page_path, label="Abrir módulo", icon="↗️")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.page_link(page_path, label="Abrir módulo", icon="📈")
+    else:
+        st.page_link("streamlit_app.py", label="Próximamente", disabled=True, icon="⏳")
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
 
-# =========================
-#  KPI compacto con tooltip
-# =========================
-def kpi(label: str, value: str, help_text: str | None = None):
-    """KPI compacto con tooltip (usa st.metric)."""
-    st.metric(label=label, value=value, help=help_text)
+# -------------------------------------------------------------------
+# Controles de rango + gobierno + frecuencia
+#   - Devuelve: (d_ini, d_fin, freq_label)
+#   - Si se elige un gobierno (!= ninguno), tiene prioridad sobre el rango rápido
+# -------------------------------------------------------------------
+_GOV_PERIODS = [
+    ("(ninguno)", None, None),
+    ("Néstor Kirchner (2003–2007)", "2003-05-25", "2007-12-10"),
+    ("Cristina Fernández I (2007–2011)", "2007-12-10", "2011-12-10"),
+    ("Cristina Fernández II (2011–2015)", "2011-12-10", "2015-12-10"),
+    ("Mauricio Macri (2015–2019)", "2015-12-10", "2019-12-10"),
+    ("Alberto Fernández (2019–2023)", "2019-12-10", "2023-12-10"),
+    ("Javier Milei (2023– )", "2023-12-10", None),
+]
 
+def _parse_date(s: Optional[str]) -> Optional[dt.date]:
+    if not s:
+        return None
+    return dt.date.fromisoformat(s)
 
-# ===========================================
-#  Rango rápido + Gobiernos + Frecuencia
-# ===========================================
-# Períodos presidenciales (inclusive)
-GOV_PERIODS: dict[str, tuple[pd.Timestamp, pd.Timestamp]] = {
-    "Néstor Kirchner (2003–2007)": (pd.Timestamp("2003-05-25"), pd.Timestamp("2007-12-10")),
-    "Cristina Fernández I (2007–2011)": (pd.Timestamp("2007-12-10"), pd.Timestamp("2011-12-10")),
-    "Cristina Fernández II (2011–2015)": (pd.Timestamp("2011-12-10"), pd.Timestamp("2015-12-10")),
-    "Mauricio Macri (2015–2019)": (pd.Timestamp("2015-12-10"), pd.Timestamp("2019-12-10")),
-    "Alberto Fernández (2019–2023)": (pd.Timestamp("2019-12-10"), pd.Timestamp("2023-12-10")),
-    "Javier Milei (2023– )": (pd.Timestamp("2023-12-10"), pd.Timestamp(date.today())),
-}
-
-def _quick_range_bounds(min_date: pd.Timestamp, max_date: pd.Timestamp, label: str) -> tuple[pd.Timestamp, pd.Timestamp]:
-    """Devuelve (start, end) según el rango rápido elegido."""
-    md, MX = pd.Timestamp(min_date), pd.Timestamp(max_date)
-    if label == "Máximo":
-        return md, MX
-    if label == "1M":
-        return max(md, MX - pd.DateOffset(months=1)), MX
-    if label == "3M":
-        return max(md, MX - pd.DateOffset(months=3)), MX
-    if label == "6M":
-        return max(md, MX - pd.DateOffset(months=6)), MX
-    if label == "1 año":
-        return max(md, MX - pd.DateOffset(years=1)), MX
-    if label == "2 años":
-        return max(md, MX - pd.DateOffset(years=2)), MX
-    if label == "YTD":
-        start_ytd = pd.Timestamp(year=MX.year, month=1, day=1)
-        return max(md, start_ytd), MX
-    return md, MX
-
-def range_controls(min_date: pd.Timestamp, max_date: pd.Timestamp, key: str = "") -> tuple[pd.Timestamp, pd.Timestamp, str]:
-    """
-    Renderiza los tres controles superiores y retorna (start, end, freq_label).
-    - Rango rápido: Máximo, 1M, 3M, 6M, 1 año, YTD, 2 años
-    - Gobierno (opcional): períodos predefinidos (tienen prioridad si se elige)
-    - Frecuencia: Diaria / Mensual (fin de mes) — default: Diaria
-    """
-    c1, c2, c3 = st.columns([1.1, 1.1, 1.0])
-    with c1:
-        quick = st.selectbox(
+def range_controls(
+    dmin: dt.date | dt.datetime,
+    dmax: dt.date | dt.datetime,
+    key: str = "",
+    show_government: bool = True,
+) -> Tuple[dt.date, dt.date, str]:
+    col1, col2, col3 = st.columns([1, 1.4, 1])
+    with col1:
+        rango = st.selectbox(
             "Rango rápido",
-            ["Máximo", "1M", "3M", "6M", "1 año", "YTD", "2 años"],
-            index=0, key=f"quick_{key}",
+            ["1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"],
+            index=6,
+            key=f"rr_{key}",
         )
-    with c2:
-        gov = st.selectbox(
-            "Gobierno (opcional)",
-            ["(ninguno)"] + list(GOV_PERIODS.keys()),
-            index=0, key=f"gov_{key}",
-        )
-    with c3:
-        freq = st.selectbox(
+    with col2:
+        gov_label = "(ninguno)"
+        if show_government:
+            gov_label = st.selectbox(
+                "Gobierno (opcional)",
+                [g[0] for g in _GOV_PERIODS],
+                index=0,
+                key=f"gov_{key}",
+            )
+    with col3:
+        freq_label = st.selectbox(
             "Frecuencia",
             ["Diaria", "Mensual (fin de mes)"],
-            index=0, key=f"freq_{key}",   # default Diaria
+            index=0,
+            key=f"fq_{key}",
         )
 
-    # calcular rango (gobierno tiene prioridad)
-    if gov != "(ninguno)":
-        start, end = GOV_PERIODS[gov]
-        start = max(pd.Timestamp(min_date), start)
-        end = min(pd.Timestamp(max_date), end)
-    else:
-        start, end = _quick_range_bounds(min_date, max_date, quick)
+    # fechas base
+    dmin = (dmin.date() if hasattr(dmin, "date") else dmin)
+    dmax = (dmax.date() if hasattr(dmax, "date") else dmax)
 
-    return start.normalize(), end.normalize(), freq
+    # si eligió gobierno, priorizamos su período
+    if show_government and gov_label != "(ninguno)":
+        _, gini, gfin = next(g for g in _GOV_PERIODS if g[0] == gov_label)
+        gini_d = _parse_date(gini) or dmin
+        gfin_d = _parse_date(gfin) or dmax
+        d_ini, d_fin = max(dmin, gini_d), min(dmax, gfin_d)
+        return d_ini, d_fin, freq_label
+
+    # caso contrario, rango rápido
+    today = dmax
+    if rango == "1 mes":
+        d_ini = max(dmin, today - dt.timedelta(days=31))
+    elif rango == "3 meses":
+        d_ini = max(dmin, today - dt.timedelta(days=92))
+    elif rango == "6 meses":
+        d_ini = max(dmin, today - dt.timedelta(days=183))
+    elif rango == "1 año":
+        d_ini = max(dmin, today - dt.timedelta(days=365))
+    elif rango == "YTD":
+        d_ini = dt.date(today.year, 1, 1)
+    elif rango == "2 años":
+        d_ini = max(dmin, today - dt.timedelta(days=365 * 2))
+    else:  # Máximo
+        d_ini = dmin
+    d_fin = dmax
+    return d_ini, d_fin, freq_label
+
+
+# -------------------------------------------------------------------
+# KPI con tooltip
+# -------------------------------------------------------------------
+def kpi(title: str, value: str, help_text: Optional[str] = None) -> None:
+    with st.container():
+        st.markdown('<div class="kpi-box">', unsafe_allow_html=True)
+        row = st.columns([1, 0.08]) if help_text else [st]
+        if help_text:
+            with row[0]:
+                st.markdown(f'<div class="kpi-title">{title}</div>', unsafe_allow_html=True)
+            with row[1]:
+                st.markdown(f'🛈', help=help_text)
+        else:
+            st.markdown(f'<div class="kpi-title">{title}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-value">{value}</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
