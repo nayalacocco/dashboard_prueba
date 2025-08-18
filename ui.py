@@ -29,69 +29,106 @@ def inject_css():
         border, card_bg, muted = "rgba(15,23,42,.12)", "#FFFFFF", "rgba(15,23,42,.70)"
         chip_bg = "#F1F5F9"
 
-    st.markdown(f"""
-    <style>
-    #MainMenu, footer {{ visibility: hidden; }}
-    .stApp {{
-        background: linear-gradient(180deg, {bg} 0%, {bg2} 100%) !important;
-        color: {txt} !important;
-    }}
-    .block-container {{
-        max-width: 1200px;           /* no se estira en pantallas enormes */
-        padding-top: 1.1rem; padding-bottom: 2rem;
-    }}
+    def inject_css():
+    st.markdown(
+        """
+        <style>
+        /* Ocultar menú y footer */
+        #MainMenu, footer { visibility: hidden; }
 
-    h1, .stMarkdown h1 {{ font-size: 1.9rem; margin-bottom: .3rem; }}
-    h2, .stMarkdown h2 {{ font-size: 1.3rem; margin-top: .8rem; margin-bottom: .2rem; }}
-    h3, .stMarkdown h3 {{ font-size: 1.05rem; }}
+        /* Fondo general */
+        .stApp {
+            background-color: #0A0E1A;
+            color: #FFFFFF;
+        }
 
-    /* GRID de mosaicos */
-    .tiles {{
-        display: flex; flex-wrap: wrap; gap: 20px;
-        justify-content: center; align-items: stretch;
-        margin-top: 10px;
-    }}
+        /* Contenedor */
+        .block-container {
+            max-width: 1200px;
+            padding-top: 1.1rem; 
+            padding-bottom: 2rem;
+        }
 
-    /* Tarjeta */
-    .card {{
-        width: 320px; max-width: 100%;
-        border-radius: 14px;
-        border: 1px solid {border};
-        background: {card_bg};
-        box-shadow: 0 4px 16px rgba(15,23,42,0.06);
-        padding: 14px 16px;
-        display: flex; flex-direction: column; gap: 8px;
-        transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-    }}
-    .card:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 14px 30px rgba(2,6,23,.20);
-        border-color: rgba(14,165,233,.45);
-    }}
-    .card h3 {{ margin: 0; font-size: 1.06rem; line-height: 1.25; }}
-    .muted {{ color: {muted}; font-size: 0.93rem; }}
+        /* Headers */
+        h1, h2, h3, h4 {
+            color: #FFFFFF;
+        }
+        h1, .stMarkdown h1 { font-size: 1.9rem; margin-bottom: .3rem; }
+        h2, .stMarkdown h2 { font-size: 1.3rem; margin-top: .8rem; margin-bottom: .2rem; }
+        h3, .stMarkdown h3 { font-size: 1.05rem; }
 
-    /* Pie de tarjeta con link a la derecha */
-    .card-footer {{
-        display: flex; justify-content: flex-end; margin-top: 6px;
-    }}
+        /* Texto secundario */
+        .stMarkdown, label, .stSelectbox, .stMultiSelect {
+            color: #9CA3AF !important;
+        }
 
-    /* st.page_link como chip/botón */
-    a[data-testid="stPageLink"] {{
-        background: {chip_bg};
-        border: 1px solid {border};
-        padding: 6px 10px;
-        border-radius: 10px;
-        text-decoration: none;
-        font-size: 0.92rem;
-    }}
-    a[data-testid="stPageLink"]:hover {{
-        border-color: rgba(14,165,233,.55);
-    }}
+        /* GRID de mosaicos */
+        .tiles {
+            display: flex; flex-wrap: wrap; gap: 20px;
+            justify-content: center; align-items: stretch;
+            margin-top: 10px;
+        }
 
-    .js-plotly-plot {{ margin-bottom: 26px; }}
-    </style>
-    """, unsafe_allow_html=True)
+        /* Tarjeta */
+        .card {
+            width: 320px; max-width: 100%;
+            border-radius: 14px;
+            border: 1px solid #1F2937;
+            background: #111827;
+            box-shadow: 0 4px 16px rgba(15,23,42,0.06);
+            padding: 14px 16px;
+            display: flex; flex-direction: column; gap: 8px;
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 30px rgba(2,6,23,.20);
+            border-color: rgba(37,99,235,.45); /* azul Atlas */
+        }
+        .card h3 { margin: 0; font-size: 1.06rem; line-height: 1.25; }
+        .muted { color: #9CA3AF; font-size: 0.93rem; }
+
+        /* Pie de tarjeta con link */
+        .card-footer {
+            display: flex; justify-content: flex-end; margin-top: 6px;
+        }
+        a[data-testid="stPageLink"] {
+            background: #111827;
+            border: 1px solid #1F2937;
+            padding: 6px 10px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 0.92rem;
+            color: #FFFFFF;
+        }
+        a[data-testid="stPageLink"]:hover {
+            border-color: rgba(37,99,235,.55);
+        }
+
+        /* Botones */
+        .stButton>button {
+            background: linear-gradient(90deg, #0D1B52, #2563EB);
+            color: white;
+            border-radius: 8px;
+            border: none;
+        }
+        .stButton>button:hover {
+            background: linear-gradient(90deg, #2563EB, #3B82F6);
+        }
+
+        /* Selectores */
+        .stSelectbox, .stMultiSelect, .stRadio, .stSlider {
+            background-color: #111827;
+            border-radius: 8px;
+            color: #FFFFFF;
+        }
+
+        /* Plotly margin fix */
+        .js-plotly-plot { margin-bottom: 26px; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 # =========================
