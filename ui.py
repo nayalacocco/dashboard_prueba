@@ -60,7 +60,7 @@ def inject_css() -> None:
         }
         .block-container {
             max-width: 1200px;
-            padding-top: 1.1rem; 
+            padding-top: 1.1rem;
             padding-bottom: 2rem;
         }
 
@@ -137,16 +137,41 @@ def inject_css() -> None:
         /* Plotly margin fix */
         .js-plotly-plot { margin-bottom: 26px; }
 
-        /* KPIs */
-        .kpi-box {
-            background: #111827;
-            border: 1px solid #1F2937;
-            border-radius: 12px;
-            padding: 14px 16px;
+        /* ---------------------- KPIs ---------------------- */
+        .kpi-box{
+          background:#111827;
+          border:1px solid #1F2937;
+          border-radius:12px;
+          padding:14px 16px;
         }
-        .kpi-title { color: #9CA3AF; font-size: 0.9rem; margin-bottom: 6px; }
-        .kpi-value { color: #FFFFFF; font-size: 1.6rem; font-weight: 600; }
-        .kpi-help { color: #9CA3AF; font-size: 0.85rem; }
+        .kpi-head{
+          display:flex; align-items:center; justify-content:space-between;
+          margin-bottom:6px;
+        }
+        .kpi-title{ color:#9CA3AF; font-size:.9rem; }
+        .kpi-value{ color:#FFFFFF; font-size:1.6rem; font-weight:600; }
+
+        /* “?” con tooltip CSS (sin el help= de Streamlit) */
+        .kpi-help{
+          position:relative;
+          display:inline-flex; align-items:center; justify-content:center;
+          width:18px; height:18px; border-radius:50%;
+          border:1px solid #374151; color:#9CA3AF;
+          font-size:.8rem; font-weight:700; cursor:help; user-select:none;
+        }
+        .kpi-help:hover::after{
+          content: attr(data-tip);
+          position:absolute; left:50%; transform:translateX(-50%); bottom:130%;
+          background:#0B1222; color:#E5E7EB; border:1px solid #374151;
+          border-radius:8px; padding:8px 10px; width:max-content; max-width:320px;
+          white-space:normal; font-size:.85rem; line-height:1.2rem;
+          box-shadow:0 8px 20px rgba(0,0,0,.25); z-index:9999;
+        }
+        .kpi-help:hover::before{
+          content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
+          border:6px solid transparent; border-top-color:#374151;
+        }
+        /* --------------------------------------------------- */
         </style>
         """,
         unsafe_allow_html=True,
@@ -257,18 +282,18 @@ def range_controls(
 
 
 # -------------------------------------------------------------------
-# KPI con tooltip
+# KPI con tooltip (CSS) – sin usar help= para evitar la "X"
 # -------------------------------------------------------------------
 def kpi(title: str, value: str, help_text: Optional[str] = None) -> None:
-    with st.container():
-        st.markdown('<div class="kpi-box">', unsafe_allow_html=True)
-        row = st.columns([1, 0.08]) if help_text else [st]
-        if help_text:
-            with row[0]:
-                st.markdown(f'<div class="kpi-title">{title}</div>', unsafe_allow_html=True)
-            with row[1]:
-                st.markdown(f'🛈', help=help_text)
-        else:
-            st.markdown(f'<div class="kpi-title">{title}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="kpi-value">{value}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+    tip = f' data-tip="{help_text}"' if help_text else ""
+    help_html = f'<div class="kpi-help"{tip}>?</div>' if help_text else ""
+    html = f"""
+    <div class="kpi-box">
+      <div class="kpi-head">
+        <div class="kpi-title">{title}</div>
+        {help_html}
+      </div>
+      <div class="kpi-value">{value}</div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
