@@ -1,12 +1,19 @@
 name: Fetch BCRA Base Monetaria
 
 on:
+  # Automático: 05:00 y 20:00 hora Argentina (UTC-3) => 08:00 y 23:00 UTC
   schedule:
-    - cron: "0 10 * * *"   # todos los días 10:00 UTC (07:00 AR). Ajustá si querés.
+    - cron: "0 8 * * *"    # 05:00 ART
+    - cron: "0 23 * * *"   # 20:00 ART
+  # Manual: desde la pestaña Actions -> Run workflow
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: fetch-bcra
+  cancel-in-progress: true
 
 jobs:
   fetch:
@@ -34,8 +41,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           if ! git diff --cached --quiet; then
-            git commit -m "chore(data): update BCRA Base Monetaria (auto)"
+            git commit -m "chore(data): refresh BCRA (auto)"
             git push
           else
             echo "No changes to commit"
-          fi
