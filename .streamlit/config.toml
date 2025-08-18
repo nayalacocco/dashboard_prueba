@@ -1,7 +1,8 @@
 [theme]
-base = "light"              # o "dark" si preferís
+# Default de la app
+base = "dark"
 primaryColor = "#0EA5E9"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F7FAFC"
-textColor = "#0F172A"
+textColor = "#E5E7EB"
+backgroundColor = "#0B1220"
+secondaryBackgroundColor = "#111827"
 font = "sans serif"
