@@ -3,9 +3,11 @@ name: Fetch BCRA Base Monetaria
 on:
   # Automático: 05:00 y 20:00 hora Argentina (UTC-3) => 08:00 y 23:00 UTC
   schedule:
-    - cron: "0 8 * * *"    # 05:00 ART
-    - cron: "0 23 * * *"   # 20:00 ART
-  # Manual: desde la pestaña Actions -> Run workflow
+    - cron: "0 8 * * *"     # 05:00 ART
+    - cron: "0 23 * * *"    # 20:00 ART
+    - cron: "22 0 * * *"   # 21:21 ART (00:21 UTC) este es de prueba
+
+  # Manual: desde Actions -> Run workflow
   workflow_dispatch:
 
 permissions:
@@ -36,12 +38,15 @@ jobs:
         run: python scripts/fetch_bcra.py
 
       - name: Commit & push if changed
+        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          if ! git diff --cached --quiet; then
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
             git commit -m "chore(data): refresh BCRA (auto)"
             git push
-          else
-            echo "No changes to commit"
+          fi
