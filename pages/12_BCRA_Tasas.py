@@ -10,9 +10,8 @@ from bcra_utils import (
     find_first,
     resample_series,
     compute_kpis,
-    list_governments,                 # por si lo usás luego
-    nice_ticks,                       # <- IMPORTANTE
-    aligned_right_ticks_round,        # <- IMPORTANTE
+    nice_ticks,
+    aligned_right_ticks_round,
 )
 
 st.set_page_config(page_title="BCRA – Política monetaria y tasas", layout="wide")
@@ -30,7 +29,7 @@ if df.empty:
 
 vars_all = sorted(df["descripcion"].dropna().unique().tolist())
 
-# Algunas series típicas para sugerir por defecto
+# Algunas series “conocidas” para proponer por defecto
 tpm    = find_first(vars_all, "tasa", "política") or find_first(vars_all, "tasa de política")
 pases  = find_first(vars_all, "tasa", "pases") or find_first(vars_all, "operaciones", "pase")
 badlar = find_first(vars_all, "badlar")
@@ -45,18 +44,14 @@ sel = st.multiselect(
     opciones,
     default=predef if predef else None,
     max_selections=3,
-    help=(
-        "Podés combinar tasas (en %) con agregados o reservas. "
-        "Si las escalas difieren mucho, se usa doble eje Y con ticks alineados a la grilla del eje izquierdo."
-    ),
+    help="Podés combinar tasas (en %) con agregados o reservas. Si las escalas difieren mucho, se usa doble eje Y.",
     key="tasas_sel",
 )
-
 if not sel:
     st.info("Elegí al menos una serie para comenzar.")
     st.stop()
 
-# Pivot con las elegidas (historia completa)
+# Pivot con todas las seleccionadas
 wide_full = (
     df[df["descripcion"].isin(sel)]
     .pivot(index="fecha", columns="descripcion", values="valor")
@@ -68,8 +63,8 @@ wide_full = (
 # =========================
 dmin, dmax = wide_full.index.min(), wide_full.index.max()
 d_ini, d_fin, freq_label = range_controls(dmin, dmax, key="tasas")
-
 freq = "D" if freq_label.startswith("Diaria") else "M"
+
 wide_vis = wide_full.loc[d_ini:d_fin]
 if freq == "M":
     wide_vis = wide_vis.resample("M").last()
@@ -80,9 +75,9 @@ if wide_vis.empty:
     st.stop()
 
 # =========================
-# Heurística de ejes
+# Heurística de ejes (como en el comparador)
 # =========================
-THRESH = 5.0  # si la razón de rangos supera esto, mandamos al eje derecho
+THRESH = 5.0
 
 def _range(s: pd.Series) -> float:
     s = s.dropna()
@@ -92,6 +87,7 @@ def _range(s: pd.Series) -> float:
 
 left_series = [sel[0]]
 right_series = []
+
 left_range = _range(wide_vis[sel[0]])
 right_range = None
 
@@ -99,7 +95,7 @@ for name in sel[1:]:
     r = _range(wide_vis[name])
     if left_range == 0:
         left_series.append(name)
-        left_range = max(left_range, r)
+        left_range = r
     else:
         if r / max(left_range, 1e-12) > THRESH:
             right_series.append(name)
@@ -115,13 +111,14 @@ if not left_series and right_series:
 # Figura
 # =========================
 fig = go.Figure()
+palette = ["#60A5FA", "#F87171", "#34D399"]
 
-palette = ["#60A5FA", "#F87171", "#34D399", "#F59E0B", "#A78BFA"]
+def looks_like_percent(name: str) -> bool:
+    s = name.lower()
+    return ("% " in s) or ("en %" in s) or (" tna" in s) or (" tea" in s) or ("por ciento" in s)
 
-# Eje izquierdo
+# ---- Traces eje izquierdo
 for i, name in enumerate(left_series):
-    if name not in wide_vis:
-        continue
     s = wide_vis[name].dropna()
     if s.empty:
         continue
@@ -130,13 +127,12 @@ for i, name in enumerate(left_series):
             x=s.index, y=s.values, mode="lines",
             name=name, line=dict(width=2, color=palette[i % len(palette)]),
             yaxis="y",
+            hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
         )
     )
 
-# Eje derecho
+# ---- Traces eje derecho
 for j, name in enumerate(right_series):
-    if name not in wide_vis:
-        continue
     s = wide_vis[name].dropna()
     if s.empty:
         continue
@@ -146,55 +142,82 @@ for j, name in enumerate(right_series):
             x=s.index, y=s.values, mode="lines",
             name=name, line=dict(width=2, color=color),
             yaxis="y2",
+            hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
         )
     )
 
-# Ticks y rangos "lindos"
+# =========================
+# Rangos & ticks “lindos”
+# =========================
+# Izquierda
+left_ticks = []
+y_range = None
 if left_series:
     left_vals = pd.concat([wide_vis[n].dropna() for n in left_series], axis=0)
     lmin, lmax = float(left_vals.min()), float(left_vals.max())
-    left_ticks = nice_ticks(lmin, lmax, max_ticks=7)
-    y_range = [left_ticks[0], left_ticks[-1]] if left_ticks else [lmin, lmax]
-else:
-    left_ticks, y_range = [], [0, 1]
+    # Si todo igual, damos un pequeño pad
+    if lmax == lmin:
+        pad = max(1.0, abs(lmin) * 0.05)
+        y_range = [lmin - pad, lmax + pad]
+    else:
+        lt = nice_ticks(lmin, lmax, max_ticks=7)
+        left_ticks = lt
+        y_range = [lt[0], lt[-1]] if lt else [lmin, lmax]
 
+# Derecha (alineado a grilla izq)
+rticks, rrange = [], (None, None)
 if right_series:
     right_vals = pd.concat([wide_vis[n].dropna() for n in right_series], axis=0)
     rmin, rmax = float(right_vals.min()), float(right_vals.max())
-    rticks, (r0, r1) = aligned_right_ticks_round(left_ticks, rmin, rmax)
-else:
-    rticks, (r0, r1) = [], (None, None)
+    rticks, rrange = aligned_right_ticks_round(left_ticks, rmin, rmax)
 
+# =========================
+# Layout & ejes
+# =========================
 fig.update_layout(
     template="plotly_dark",
     height=620,
-    margin=dict(t=30, b=90, l=70, r=70),
-    legend=dict(orientation="h", y=-0.3, x=0.5, xanchor="center"),
+    margin=dict(t=30, b=90, l=70, r=90),
+    legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
+    # uirevision para que al cambiar controles no rompa el zoom del usuario,
+    # pero sin interferir con el rango inicial calculado
+    uirevision="tasas",
 )
+
 fig.update_xaxes(
     title_text="Fecha",
     showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
 )
-# eje izquierdo
+
+# Formato de ticks del eje izquierdo (si parece % dejamos entero, sino compactamos un poco)
+left_is_percent = any(looks_like_percent(n) for n in left_series) if left_series else False
+left_tickformat = ".0f" if left_is_percent else "~s"   # ~s = 28.9M, 530k, etc.
+
 fig.update_yaxes(
     title_text="Eje izq",
     showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
+    showgrid=True, gridcolor="#1F2937",
     tickmode="array" if left_ticks else "auto",
     tickvals=left_ticks if left_ticks else None,
-    range=y_range if all(np.isfinite(y_range)) else None,
+    tickformat=left_tickformat,
+    range=y_range if (y_range and np.isfinite(y_range[0]) and np.isfinite(y_range[1])) else None,
+    autorange=False if y_range else True,   # fijamos rango inicial si lo calculamos
     zeroline=False,
 )
 
-# eje derecho (si corresponde)
+# Eje derecho (sin grilla, con etiquetas compactas)
 if right_series:
+    r0, r1 = rrange
     fig.update_layout(
         yaxis2=dict(
             title="Eje der",
-            overlaying="y",
-            side="right",
+            overlaying="y", side="right",
+            showgrid=False,                 # <— sin líneas de grilla a la derecha
             tickmode="array" if rticks else "auto",
             tickvals=rticks if rticks else None,
+            tickformat="~s",                # <— 28.9M, 530k, etc.
             range=[r0, r1] if (r0 is not None and r1 is not None) else None,
+            autorange=False if (r0 is not None and r1 is not None) else True,
             showline=True, linewidth=1, linecolor="#E5E7EB",
             zeroline=False,
         )
@@ -212,7 +235,6 @@ serie_full = (
     .sort_index()
     .astype(float)
 )
-
 serie_visible = resample_series(
     wide_full[principal].loc[d_ini:d_fin].dropna(),
     freq=("D" if freq_label.startswith("Diaria") else "M"),
@@ -225,10 +247,10 @@ fmt = lambda x: ("—" if x is None or pd.isna(x) else f"{x:,.2f}%")
 c1, c2, c3 = st.columns(3)
 with c1:
     kpi("Mensual (MoM)", fmt(mom),
-        help_text="Variación del último dato mensual vs el mes previo (siempre fin de mes).")
+        help_text="Variación del último dato mensual vs el mes previo (fin de mes).")
 with c2:
     kpi("Interanual (YoY)", fmt(yoy),
         help_text="Variación del último dato mensual vs el mismo mes de hace 12 meses.")
 with c3:
     kpi("Δ en el período", fmt(d_per),
-        help_text="Variación entre el primer y el último dato del rango visible (frecuencia elegida).")
+        help_text="Variación entre primer y último dato del rango visible (frecuencia elegida).")
