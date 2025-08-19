@@ -75,7 +75,7 @@ if wide_vis.empty:
     st.stop()
 
 # =========================
-# Heurística de ejes (como en el comparador)
+# Heurística de ejes
 # =========================
 THRESH = 5.0
 
@@ -155,7 +155,6 @@ y_range = None
 if left_series:
     left_vals = pd.concat([wide_vis[n].dropna() for n in left_series], axis=0)
     lmin, lmax = float(left_vals.min()), float(left_vals.max())
-    # Si todo igual, damos un pequeño pad
     if lmax == lmin:
         pad = max(1.0, abs(lmin) * 0.05)
         y_range = [lmin - pad, lmax + pad]
@@ -164,12 +163,39 @@ if left_series:
         left_ticks = lt
         y_range = [lt[0], lt[-1]] if lt else [lmin, lmax]
 
-# Derecha (alineado a grilla izq)
+# Derecha (alineado a grilla izq) + etiquetado SI manual
 rticks, rrange = [], (None, None)
 if right_series:
     right_vals = pd.concat([wide_vis[n].dropna() for n in right_series], axis=0)
     rmin, rmax = float(right_vals.min()), float(right_vals.max())
+    # Si por redondeos quedó muy cerca de cero negativo, piso a 0
+    if rmin < 0 and abs(rmin) < (abs(rmax) * 0.02 + 1e-9):
+        rmin = 0.0
     rticks, rrange = aligned_right_ticks_round(left_ticks, rmin, rmax)
+
+def si_label(x: float) -> str:
+    """Etiqueta compacta con hasta 1 decimal: K / M / B (o entero)."""
+    if x is None or not np.isfinite(x):
+        return ""
+    sign = "-" if x < 0 else ""
+    v = abs(x)
+    if v >= 1e9:
+        val = v / 1e9
+        txt = f"{val:.1f}B" if val < 10 else f"{val:.0f}B"
+    elif v >= 1e6:
+        val = v / 1e6
+        txt = f"{val:.1f}M" if val < 10 else f"{val:.0f}M"
+    elif v >= 1e3:
+        val = v / 1e3
+        txt = f"{val:.1f}K" if val < 10 else f"{val:.0f}K"
+    else:
+        txt = f"{v:.0f}"
+    # borrar .0 final si quedó
+    if txt.endswith(".0K") or txt.endswith(".0M") or txt.endswith(".0B"):
+        txt = txt.replace(".0", "")
+    return sign + txt
+
+right_ticktext = [si_label(v) for v in rticks] if rticks else []
 
 # =========================
 # Layout & ejes
@@ -179,8 +205,6 @@ fig.update_layout(
     height=620,
     margin=dict(t=30, b=90, l=70, r=90),
     legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
-    # uirevision para que al cambiar controles no rompa el zoom del usuario,
-    # pero sin interferir con el rango inicial calculado
     uirevision="tasas",
 )
 
@@ -189,9 +213,8 @@ fig.update_xaxes(
     showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
 )
 
-# Formato de ticks del eje izquierdo (si parece % dejamos entero, sino compactamos un poco)
 left_is_percent = any(looks_like_percent(n) for n in left_series) if left_series else False
-left_tickformat = ".0f" if left_is_percent else "~s"   # ~s = 28.9M, 530k, etc.
+left_tickformat = ".0f" if left_is_percent else "~s"
 
 fig.update_yaxes(
     title_text="Eje izq",
@@ -201,21 +224,20 @@ fig.update_yaxes(
     tickvals=left_ticks if left_ticks else None,
     tickformat=left_tickformat,
     range=y_range if (y_range and np.isfinite(y_range[0]) and np.isfinite(y_range[1])) else None,
-    autorange=False if y_range else True,   # fijamos rango inicial si lo calculamos
+    autorange=False if y_range else True,
     zeroline=False,
 )
 
-# Eje derecho (sin grilla, con etiquetas compactas)
 if right_series:
     r0, r1 = rrange
     fig.update_layout(
         yaxis2=dict(
             title="Eje der",
             overlaying="y", side="right",
-            showgrid=False,                 # <— sin líneas de grilla a la derecha
+            showgrid=False,                  # sin grilla en el eje derecho
             tickmode="array" if rticks else "auto",
             tickvals=rticks if rticks else None,
-            tickformat="~s",                # <— 28.9M, 530k, etc.
+            ticktext=right_ticktext if rticks else None,   # <— forzamos etiquetas SI
             range=[r0, r1] if (r0 is not None and r1 is not None) else None,
             autorange=False if (r0 is not None and r1 is not None) else True,
             showline=True, linewidth=1, linecolor="#E5E7EB",
