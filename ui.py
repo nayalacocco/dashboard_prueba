@@ -223,8 +223,17 @@ def range_controls(
     dmax: dt.date | dt.datetime,
     key: str = "",
     show_government: bool = True,
-    priority: str = "auto",   # "auto" | "gobierno" | "rango"
 ) -> Tuple[dt.date, dt.date, str]:
+    # --- estado inicial para este bloque ---
+    rr_key   = f"rr_{key}"
+    gov_key  = f"gov_{key}"
+    fq_key   = f"fq_{key}"
+    flag_rr  = f"flag_rr_{key}"   # contador de cambios de rango
+    flag_gov = f"flag_gov_{key}"  # contador de cambios de gobierno
+    if flag_rr not in st.session_state:  st.session_state[flag_rr] = 0
+    if flag_gov not in st.session_state: st.session_state[flag_gov] = 0
+    if gov_key not in st.session_state:  st.session_state[gov_key]  = "(ninguno)"
+
     # --- widgets ---
     col1, col2, col3 = st.columns([1, 1.4, 1])
     with col1:
@@ -232,32 +241,66 @@ def range_controls(
             "Rango rápido",
             ["1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"],
             index=6,
-            key=f"rr_{key}",
-            on_change=lambda: st.session_state.__setitem__(f"rr_changed_{key}",
-                                                          st.session_state.get(f"rr_changed_{key}", 0) + 1),
+            key=rr_key,
+            on_change=lambda: st.session_state.__setitem__(flag_rr, st.session_state[flag_rr] + 1),
         )
     with col2:
         gov_label = "(ninguno)"
         if show_government:
+            # si cambió el rango, limpiamos gobierno ANTES de dibujar el select
+            if st.session_state[flag_rr] > st.session_state[flag_gov]:
+                st.session_state[gov_key] = "(ninguno)"
             gov_label = st.selectbox(
                 "Gobierno (opcional)",
                 [g[0] for g in _GOV_PERIODS],
-                index=0,
-                key=f"gov_{key}",
-                on_change=lambda: st.session_state.__setitem__(f"gov_changed_{key}",
-                                                               st.session_state.get(f"gov_changed_{key}", 0) + 1),
+                index=[g[0] for g in _GOV_PERIODS].index(st.session_state[gov_key]),
+                key=gov_key,
+                on_change=lambda: st.session_state.__setitem__(flag_gov, st.session_state[flag_gov] + 1),
             )
     with col3:
         freq_label = st.selectbox(
             "Frecuencia",
             ["Diaria", "Mensual (fin de mes)"],
             index=0,
-            key=f"fq_{key}",
+            key=fq_key,
         )
 
     # fechas base
     dmin = (dmin.date() if hasattr(dmin, "date") else dmin)
     dmax = (dmax.date() if hasattr(dmax, "date") else dmax)
+
+    # helpers de rango
+    def _range_from_quick():
+        today = dmax
+        if rango == "1 mes":
+            d_ini = max(dmin, today - dt.timedelta(days=31))
+        elif rango == "3 meses":
+            d_ini = max(dmin, today - dt.timedelta(days=92))
+        elif rango == "6 meses":
+            d_ini = max(dmin, today - dt.timedelta(days=183))
+        elif rango == "1 año":
+            d_ini = max(dmin, today - dt.timedelta(days=365))
+        elif rango == "YTD":
+            d_ini = dt.date(today.year, 1, 1)
+        elif rango == "2 años":
+            d_ini = max(dmin, today - dt.timedelta(days=365 * 2))
+        else:  # Máximo
+            d_ini = dmin
+        return d_ini, dmax
+
+    def _range_from_gov(label: str):
+        _, gini, gfin = next(g for g in _GOV_PERIODS if g[0] == label)
+        gini_d = _parse_date(gini) or dmin
+        gfin_d = _parse_date(gfin) or dmax
+        return max(dmin, gini_d), min(dmax, gfin_d)
+
+    # prioridad: si el último click fue Rango, pisa Gobierno (y lo limpia)
+    if show_government and st.session_state[flag_gov] > st.session_state[flag_rr] and st.session_state[gov_key] != "(ninguno)":
+        d_ini, d_fin = _range_from_gov(st.session_state[gov_key])
+    else:
+        d_ini, d_fin = _range_from_quick()
+
+    return d_ini, d_fin, freq_label
 
     # helper rango rápido
     def _range_from_quick():
