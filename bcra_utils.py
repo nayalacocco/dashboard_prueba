@@ -1,245 +1,236 @@
 # bcra_utils.py
 from __future__ import annotations
 
-import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-DATA_DIR = Path("data")
 
-# -------------------------------------------------------------------
-# Helpers básicos
-# -------------------------------------------------------------------
-def _parse_date_col(s: pd.Series) -> pd.DatetimeIndex:
-    """Convierte una columna a datetime (UTC naive) y la ordena."""
-    out = pd.to_datetime(s, errors="coerce", utc=True).dt.tz_localize(None)
-    return out
+# =========================
+# Carga de datos (formato long)
+# =========================
 
-def _coerce_numeric(s: pd.Series) -> pd.Series:
-    return pd.to_numeric(s, errors="coerce")
-
-def _load_csv_safe(p: Path) -> Optional[pd.DataFrame]:
-    try:
-        return pd.read_csv(p)
-    except Exception:
-        return None
-
-# -------------------------------------------------------------------
-# Carga de datos (larga: fecha, descripcion, valor)
-# -------------------------------------------------------------------
-def load_bcra_long() -> pd.DataFrame:
+def _read_one_csv(path: Path) -> pd.DataFrame:
     """
-    Devuelve un DataFrame largo con columnas: ['fecha', 'descripcion', 'valor'].
-
-    - Si existe data/series_monetarias.csv la usa como fuente principal.
-    - Si no, intenta data/base_monetaria.csv y le asigna una descripción genérica.
-    - Si encuentra varios .csv en data/ que ya tengan esas 3 columnas, los concatena.
+    Intenta leer un CSV cualquiera del folder data/ y devolverlo en formato:
+      fecha (datetime), descripcion (str), valor (float)
+    Admite varias formas de columnas y normaliza.
     """
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    df = pd.read_csv(path)
+    # normalizar nombres
+    df.columns = [c.strip().lower() for c in df.columns]
 
-    # 1) Preferimos un consolidado si existe
-    p_main = DATA_DIR / "series_monetarias.csv"
-    if p_main.exists():
-        df = pd.read_csv(p_main)
-        df = df.rename(
-            columns={
-                "Fecha": "fecha",
-                "fecha": "fecha",
-                "Descripcion": "descripcion",
-                "descripcion": "descripcion",
-                "valor": "valor",
-                "Valor": "valor",
-            }
-        )
-        need = {"fecha", "descripcion", "valor"}
-        if need.issubset(set(df.columns)):
-            df["fecha"] = _parse_date_col(df["fecha"])
-            df["valor"] = _coerce_numeric(df["valor"])
-            df = df.dropna(subset=["fecha", "valor"]).sort_values("fecha")
-            return df[["fecha", "descripcion", "valor"]]
+    # identificar columnas posibles
+    # fecha: 'fecha' o 'date'
+    fcol = None
+    for c in df.columns:
+        if c in ("fecha", "date"):
+            fcol = c
+            break
 
-    # 2) Fallback a base_monetaria.csv si está
-    p_base = DATA_DIR / "base_monetaria.csv"
-    if p_base.exists():
-        dfb = pd.read_csv(p_base)
-        # admitir nombres varios
-        # (fecha, valor) o (Fecha, Valor)
-        c_fecha = next((c for c in dfb.columns if c.lower().startswith("fecha")), None)
-        c_valor = next((c for c in dfb.columns if c.lower().startswith("valor")), None)
-        if c_fecha and c_valor:
-            out = pd.DataFrame(
-                {
-                    "fecha": _parse_date_col(dfb[c_fecha]),
-                    "valor": _coerce_numeric(dfb[c_valor]),
-                }
-            )
-            out["descripcion"] = "Base monetaria - Total (en millones de pesos)"
-            out = out.dropna(subset=["fecha", "valor"]).sort_values("fecha")
-            return out[["fecha", "descripcion", "valor"]]
+    # descripcion: 'descripcion'/'description'/'variable'/'serie'
+    dcol = None
+    for c in df.columns:
+        if c in ("descripcion", "description", "variable", "serie", "series", "name"):
+            dcol = c
+            break
 
-    # 3) Como último recurso, escanear otros CSVs que ya tengan las 3 columnas
-    rows = []
-    for p in DATA_DIR.glob("*.csv"):
-        if p.name in {"series_monetarias.csv", "base_monetaria.csv"}:
-            continue
-        tmp = _load_csv_safe(p)
-        if tmp is None:
-            continue
-        cols = {c.lower(): c for c in tmp.columns}
-        if {"fecha", "descripcion", "valor"}.issubset(set(cols.keys())):
-            t = tmp.rename(columns={cols["fecha"]: "fecha", cols["descripcion"]: "descripcion", cols["valor"]: "valor"})
-            t["fecha"] = _parse_date_col(t["fecha"])
-            t["valor"] = _coerce_numeric(t["valor"])
-            t = t.dropna(subset=["fecha", "valor"]).sort_values("fecha")
-            rows.append(t[["fecha", "descripcion", "valor"]])
+    # valor: 'valor'/'value'
+    vcol = None
+    for c in df.columns:
+        if c in ("valor", "value"):
+            vcol = c
+            break
 
-    if rows:
-        return pd.concat(rows, ignore_index=True).sort_values(["descripcion", "fecha"])
+    # Caso: CSV “wide” (muchas columnas con series). Intentamos stackear.
+    if fcol and not dcol and not vcol and len(df.columns) > 1:
+        df = df.rename(columns={fcol: "fecha"})
+        df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce", utc=True).dt.tz_localize(None)
+        # columnas de series = todo menos fecha
+        value_cols = [c for c in df.columns if c != "fecha"]
+        long = df.melt(id_vars="fecha", value_vars=value_cols, var_name="descripcion", value_name="valor")
+        long["valor"] = pd.to_numeric(long["valor"], errors="coerce")
+        long = long.dropna(subset=["fecha", "valor"])
+        return long[["fecha", "descripcion", "valor"]].sort_values("fecha")
 
-    # No encontramos nada util
+    # Caso “long” ya bien formado
+    if fcol and dcol and vcol:
+        out = pd.DataFrame({
+            "fecha": pd.to_datetime(df[fcol], errors="coerce", utc=True).dt.tz_localize(None),
+            "descripcion": df[dcol].astype(str),
+            "valor": pd.to_numeric(df[vcol], errors="coerce"),
+        })
+        out = out.dropna(subset=["fecha", "valor"])
+        return out.sort_values("fecha")
+
+    # Último intento: si aparece 'fecha' y exactamente 2 columnas, usamos la otra como valor
+    if fcol and len(df.columns) == 2:
+        other = [c for c in df.columns if c != fcol][0]
+        out = pd.DataFrame({
+            "fecha": pd.to_datetime(df[fcol], errors="coerce", utc=True).dt.tz_localize(None),
+            "descripcion": Path(path).stem,
+            "valor": pd.to_numeric(df[other], errors="coerce"),
+        })
+        out = out.dropna(subset=["fecha", "valor"])
+        return out.sort_values("fecha")
+
+    # Si no pudimos interpretar, devolvemos vacío para ignorarlo
     return pd.DataFrame(columns=["fecha", "descripcion", "valor"])
 
 
-# -------------------------------------------------------------------
-# Búsqueda “inteligente” de descripciones
-# -------------------------------------------------------------------
-def find_first(candidates: Iterable[str], *needles: str) -> Optional[str]:
+def load_bcra_long(data_dir: str | Path = "data") -> pd.DataFrame:
     """
-    Devuelve el primer elemento de candidates que contenga TODOS los `needles`
-    (case-insensitive). Si no encuentra, None.
+    Carga TODOS los CSV de `data/` y devuelve un DF long con columnas:
+      fecha (datetime), descripcion (str), valor (float)
     """
-    neds = [n.lower() for n in needles]
+    data_dir = Path(data_dir)
+    frames: List[pd.DataFrame] = []
+    for p in sorted(data_dir.glob("*.csv")):
+        try:
+            frames.append(_read_one_csv(p))
+        except Exception:
+            # Ignoramos CSVs rotos; evitamos romper toda la app
+            continue
+    if not frames:
+        return pd.DataFrame(columns=["fecha", "descripcion", "valor"])
+    df = pd.concat(frames, ignore_index=True)
+    # limpieza final
+    df = df.dropna(subset=["fecha", "valor"])
+    df["descripcion"] = df["descripcion"].astype(str)
+    df = df.sort_values(["descripcion", "fecha"]).reset_index(drop=True)
+    return df
+
+
+# =========================
+# Helpers de búsqueda / resample
+# =========================
+
+def _norm(s: str) -> str:
+    return str(s).strip().lower()
+
+
+def find_first(candidates: Iterable[str], *tokens: str) -> Optional[str]:
+    """
+    Devuelve el primer string en `candidates` que contenga TODOS los tokens (insensible a mayúsculas).
+    """
+    toks = [_norm(t) for t in tokens if t]
     for c in candidates:
-        lc = c.lower()
-        if all(n in lc for n in neds):
+        sc = _norm(c)
+        if all(t in sc for t in toks):
             return c
     return None
 
 
-# -------------------------------------------------------------------
-# Resampling de series
-# -------------------------------------------------------------------
 def resample_series(s: pd.Series, freq: str = "D", how: str = "last") -> pd.Series:
     """
-    Resamplea una Serie con índice datetime.
-    - freq: 'D' (diaria), 'M' (mensual fin de mes), etc.
-    - how: 'last' (default), 'mean', 'sum'...
+    Re-muestrea una serie (index datetime) a 'D' o 'M', usando 'last' por default.
     """
     if s.empty:
         return s
-    s = s.sort_index()
+    if how not in ("last", "mean", "sum", "first"):
+        how = "last"
+    if freq.upper().startswith("M"):
+        r = s.resample("M")
+    else:
+        r = s.resample("D")
     if how == "mean":
-        return s.resample(freq).mean()
-    if how == "sum":
-        return s.resample(freq).sum()
-    # default: last
-    return s.resample(freq).last()
+        out = r.mean()
+    elif how == "sum":
+        out = r.sum()
+    elif how == "first":
+        out = r.first()
+    else:
+        out = r.last()
+    return out.dropna()
 
 
-# -------------------------------------------------------------------
-# KPIs (MoM, YoY y Δ del período visible)
-# -------------------------------------------------------------------
+# =========================
+# KPIs
+# =========================
+
 def compute_kpis(
     serie_full: pd.Series,
-    serie_visible: pd.Series,
-    d_fin: pd.Timestamp | pd.Timestamp
-) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    serie_vis: pd.Series,
+    d_fin: Optional[pd.Timestamp] = None
+) -> tuple[Optional[float], Optional[float], Optional[float]]:
     """
-    - MoM: último fin de mes vs mes previo (sobre la serie histórica).
-    - YoY: último fin de mes vs igual mes del año previo (si hay historia).
-    - Δ período: primer vs último dato de lo visible (respeta frecuencia actual).
-    Devuelve porcentajes (0..100) o None.
+    Devuelve (MoM, YoY, Δperiodo) en %.
+    - MoM y YoY se calculan SIEMPRE con la serie mensual del histórico (fin de mes).
+    - Δperiodo es entre primer y último dato de la serie visible (con su frecuencia actual).
+    - d_fin es opcional; si no viene, se toma del último índice visible.
     """
-    # Asegurar índice datetime ordenado
-    if not isinstance(serie_full.index, pd.DatetimeIndex):
-        raise ValueError("serie_full debe tener DatetimeIndex")
-    if not isinstance(serie_visible.index, pd.DatetimeIndex):
-        raise ValueError("serie_visible debe tener DatetimeIndex")
+    # Normalizaciones
+    sf = serie_full.copy()
+    sv = serie_vis.copy()
+    sf = pd.to_numeric(sf, errors="coerce").dropna()
+    sv = pd.to_numeric(sv, errors="coerce").dropna()
 
-    # Serie mensual (histórico) para MoM/YoY
-    m = serie_full.sort_index().resample("M").last().dropna()
-    mom = yoy = None
+    if sf.index.tz is not None:
+        sf.index = sf.index.tz_localize(None)
+    if sv.index.tz is not None:
+        sv.index = sv.index.tz_localize(None)
 
+    # MoM / YoY con mensual del histórico
+    m = sf.resample("M").last().dropna()
+
+    # elegimos d_fin
+    if d_fin is None:
+        if not sv.empty:
+            d_fin = sv.index.max()
+        elif not m.empty:
+            d_fin = m.index.max()
+        else:
+            d_fin = None
+
+    # calcular MoM
+    mom = None
     if len(m) >= 2:
-        # último ≤ d_fin
-        m_lim = m.loc[:pd.to_datetime(d_fin)]
-        if len(m_lim) >= 2:
-            mom = (m_lim.iloc[-1] / m_lim.iloc[-2] - 1.0) * 100.0
+        m_cut = m.loc[:d_fin] if d_fin is not None else m
+        if len(m_cut) >= 2:
+            mom = float((m_cut.iloc[-1] / m_cut.iloc[-2] - 1.0) * 100.0)
 
-    if len(m) >= 13:
-        last_idx = m.index[m.index <= pd.to_datetime(d_fin)]
-        if len(last_idx) > 0:
-            last_idx = last_idx[-1]
-            ref = last_idx - pd.DateOffset(years=1)
-            base = m.loc[:ref]
-            if len(base) > 0 and base.iloc[-1] != 0:
-                yoy = (m.loc[last_idx] / base.iloc[-1] - 1.0) * 100.0
+    # calcular YoY
+    yoy = None
+    if not m.empty:
+        # último mensual <= d_fin
+        last_idx = m.index[m.index <= d_fin][-1] if d_fin is not None else m.index[-1]
+        ref_date = last_idx - pd.DateOffset(years=1)
+        # buscamos el mensual “previo o igual” a ref_date
+        m_ref = m.loc[:ref_date]
+        if len(m_ref) > 0:
+            base = m_ref.iloc[-1]
+            if base not in (0, None, np.nan):
+                yoy = float((m.loc[last_idx] / base - 1.0) * 100.0)
 
-    # Δ del período visible (con frecuencia del gráfico)
-    s = serie_visible.dropna()
+    # Δ en el período (visible)
     d_per = None
-    if len(s) >= 2 and s.iloc[0] != 0:
-        d_per = (s.iloc[-1] / s.iloc[0] - 1.0) * 100.0
+    if len(sv) >= 2:
+        first, last = sv.iloc[0], sv.iloc[-1]
+        if first not in (0, None, np.nan):
+            d_per = float((last / first - 1.0) * 100.0)
 
-    return _safe_float(mom), _safe_float(yoy), _safe_float(d_per)
-
-def _safe_float(x) -> Optional[float]:
-    try:
-        if x is None or pd.isna(x):
-            return None
-        return float(x)
-    except Exception:
-        return None
+    return mom, yoy, d_per
 
 
-# -------------------------------------------------------------------
-# Alineación de grilla para doble eje Y
-# -------------------------------------------------------------------
-def unify_secondary_y_ticks(
-    y0_min: float, y0_max: float,
-    y1_min: float, y1_max: float,
-    target_steps: int = 5
-) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
-    """
-    Dado el rango real (min,max) de cada eje, genera (min, max, dtick)
-    para que las líneas de grilla queden alineadas.
-    Retorna: (eje_izq_config, eje_der_config), cada uno como (min, max, dtick).
+# =========================
+# Gobiernos (para select)
+# =========================
 
-    - target_steps: cantidad de divisiones de referencia (aprox.) para el eje izquierdo.
-    """
-    if not np.isfinite([y0_min, y0_max, y1_min, y1_max]).all():
-        # fallback tonto
-        return (y0_min, y0_max, None), (y1_min, y1_max, None)
+@dataclass(frozen=True)
+class Govt:
+    label: str
+    start: str
+    end: Optional[str]  # None = “hasta hoy”
 
-    # “nice ticks” para eje izquierdo
-    span0 = max(1e-9, y0_max - y0_min)
-    raw_step0 = span0 / target_steps
-    step0 = _nice_step(raw_step0)
-    y0_min_a = np.floor(y0_min / step0) * step0
-    y0_max_a = np.ceil(y0_max / step0) * step0
-
-    # hacemos coincidir la cantidad de pasos en el derecho
-    steps = max(1, int(round((y0_max_a - y0_min_a) / step0)))
-    span1 = max(1e-9, y1_max - y1_min)
-    raw_step1 = span1 / steps
-    step1 = _nice_step(raw_step1)
-    y1_min_a = np.floor(y1_min / step1) * step1
-    y1_max_a = y1_min_a + steps * step1
-
-    return (y0_min_a, y0_max_a, step0), (y1_min_a, y1_max_a, step1)
-
-def _nice_step(x: float) -> float:
-    """
-    Redondea un paso a una “escala bonita”: 1, 2, 2.5, 5, 10 * 10^n
-    """
-    if x <= 0:
-        return 1.0
-    exp = np.floor(np.log10(x))
-    f = x / (10 ** exp)
-    for m in [1, 2, 2.5, 5, 10]:
-        if f <= m:
-            return m * (10 ** exp)
-    return 10 ** (exp + 1)
+def list_governments() -> list[Govt]:
+    return [
+        Govt("Néstor Kirchner (2003–2007)", "2003-05-25", "2007-12-10"),
+        Govt("Cristina Fernández I (2007–2011)", "2007-12-10", "2011-12-10"),
+        Govt("Cristina Fernández II (2011–2015)", "2011-12-10", "2015-12-10"),
+        Govt("Mauricio Macri (2015–2019)", "2015-12-10", "2019-12-10"),
+        Govt("Alberto Fernández (2019–2023)", "2019-12-10", "2023-12-10"),
+        Govt("Javier Milei (2023– )", "2023-12-10", None),
+    ]
