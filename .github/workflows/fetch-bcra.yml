@@ -5,7 +5,6 @@ on:
   schedule:
     - cron: "0 8 * * *"     # 05:00 ART
     - cron: "0 23 * * *"    # 20:00 ART
-    - cron: "22 0 * * *"   # 21:21 ART (00:21 UTC) este es de prueba
 
   # Manual: desde Actions -> Run workflow
   workflow_dispatch:
