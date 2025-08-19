@@ -223,8 +223,9 @@ def range_controls(
     dmax: dt.date | dt.datetime,
     key: str = "",
     show_government: bool = True,
-    priority: str = "gobierno",   # "gobierno" (default) o "rango"
+    priority: str = "auto",   # "auto" | "gobierno" | "rango"
 ) -> Tuple[dt.date, dt.date, str]:
+    # --- widgets ---
     col1, col2, col3 = st.columns([1, 1.4, 1])
     with col1:
         rango = st.selectbox(
@@ -232,6 +233,8 @@ def range_controls(
             ["1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"],
             index=6,
             key=f"rr_{key}",
+            on_change=lambda: st.session_state.__setitem__(f"rr_changed_{key}",
+                                                          st.session_state.get(f"rr_changed_{key}", 0) + 1),
         )
     with col2:
         gov_label = "(ninguno)"
@@ -241,6 +244,8 @@ def range_controls(
                 [g[0] for g in _GOV_PERIODS],
                 index=0,
                 key=f"gov_{key}",
+                on_change=lambda: st.session_state.__setitem__(f"gov_changed_{key}",
+                                                               st.session_state.get(f"gov_changed_{key}", 0) + 1),
             )
     with col3:
         freq_label = st.selectbox(
@@ -253,6 +258,50 @@ def range_controls(
     # fechas base
     dmin = (dmin.date() if hasattr(dmin, "date") else dmin)
     dmax = (dmax.date() if hasattr(dmax, "date") else dmax)
+
+    # helper rango rápido
+    def _range_from_quick():
+        today = dmax
+        if rango == "1 mes":
+            d_ini = max(dmin, today - dt.timedelta(days=31))
+        elif rango == "3 meses":
+            d_ini = max(dmin, today - dt.timedelta(days=92))
+        elif rango == "6 meses":
+            d_ini = max(dmin, today - dt.timedelta(days=183))
+        elif rango == "1 año":
+            d_ini = max(dmin, today - dt.timedelta(days=365))
+        elif rango == "YTD":
+            d_ini = dt.date(today.year, 1, 1)
+        elif rango == "2 años":
+            d_ini = max(dmin, today - dt.timedelta(days=365 * 2))
+        else:  # Máximo
+            d_ini = dmin
+        d_fin = dmax
+        return d_ini, d_fin
+
+    # helper gobierno
+    def _range_from_gov():
+        _, gini, gfin = next(g for g in _GOV_PERIODS if g[0] == gov_label)
+        gini_d = _parse_date(gini) or dmin
+        gfin_d = _parse_date(gfin) or dmax
+        return max(dmin, gini_d), min(dmax, gfin_d)
+
+    # prioridad
+    if priority == "gobierno":
+        if show_government and gov_label != "(ninguno)":
+            return *_range_from_gov(), freq_label
+        return *_range_from_quick(), freq_label
+
+    if priority == "rango":
+        return *_range_from_quick(), freq_label
+
+    # priority == "auto": última interacción gana
+    rr_ct = st.session_state.get(f"rr_changed_{key}", 0)
+    gv_ct = st.session_state.get(f"gov_changed_{key}", 0)
+    if show_government and gov_label != "(ninguno)" and gv_ct >= rr_ct:
+        return *_range_from_gov(), freq_label
+    else:
+        return *_range_from_quick(), freq_label
 
     # helper rango rápido
     def _range_from_quick():
