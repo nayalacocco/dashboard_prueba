@@ -234,3 +234,68 @@ def list_governments() -> list[Govt]:
         Govt("Alberto Fernández (2019–2023)", "2019-12-10", "2023-12-10"),
         Govt("Javier Milei (2023– )", "2023-12-10", None),
     ]
+
+
+# =========================
+# Ticks “lindos” y escala alineada al eje derecho
+# =========================
+
+def nice_ticks(vmin: float, vmax: float, max_ticks: int = 7) -> list[float]:
+    """
+    Genera una secuencia de ticks 'lindos' (1/2/2.5/5 * 10^n) cubriendo [vmin, vmax].
+    Útil para el eje izquierdo.
+    """
+    if not np.isfinite(vmin) or not np.isfinite(vmax):
+        return []
+    if vmin == vmax:
+        if vmin == 0:
+            return [0.0]
+        span = abs(vmin) * 0.1
+        vmin, vmax = vmin - span, vmin + span
+
+    span = vmax - vmin
+    if span <= 0:
+        return []
+
+    raw = span / max(1, max_ticks)
+    mag = 10 ** np.floor(np.log10(raw))
+
+    # “nice steps”
+    for m in (1.0, 2.0, 2.5, 5.0, 10.0):
+        step = m * mag
+        if span / step <= max_ticks:
+            break
+
+    start = np.floor(vmin / step) * step
+    end   = np.ceil(vmax / step) * step
+    ticks = np.arange(start, end + 0.5 * step, step)
+
+    ticks = ticks[(ticks >= vmin - 1e-12) & (ticks <= vmax + 1e-12)]
+    return ticks.tolist()
+
+
+def aligned_right_ticks_round(left_ticks: list[float], rmin: float, rmax: float) -> tuple[list[float], tuple[float, float]]:
+    """
+    Dado un conjunto de ticks del eje izquierdo (left_ticks) y el rango real del eje derecho (rmin..rmax),
+    devuelve (right_ticks, (r0, r1)) tal que:
+      - right_ticks cae exactamente sobre las líneas de grilla del eje izquierdo (misma cantidad de ticks)
+      - r0..r1 son los límites sugeridos del eje derecho
+    La idea es que las líneas de grilla visuales queden alineadas y el eje derecho muestre números “redondos”.
+    """
+    if not left_ticks or rmin is None or rmax is None or not np.isfinite(rmin) or not np.isfinite(rmax):
+        return [], (rmin, rmax)
+
+    l0, l1 = float(left_ticks[0]), float(left_ticks[-1])
+    if l1 == l0 or rmax == rmin:
+        return [], (rmin, rmax)
+
+    span_l = (l1 - l0)
+    span_r = (rmax - rmin)
+
+    # Pequeño pad para que el último tick no quede pegado al borde
+    pad = 0.02 * span_r
+    r0, r1 = rmin - pad, rmax + pad
+    scale = (r1 - r0) / span_l
+
+    rticks = [r0 + (lt - l0) * scale for lt in left_ticks]
+    return rticks, (rticks[0], rticks[-1])
