@@ -18,13 +18,16 @@ st.set_page_config(page_title="BCRA – Política monetaria y tasas", layout="wi
 inject_css()
 st.title("🟦 Política monetaria y tasas")
 
+# =========================
 # Datos
+# =========================
 df = load_bcra_long()
 if df.empty:
     st.error("No encontré datos del BCRA. Corré el fetch (GitHub Actions) primero.")
     st.stop()
 
 vars_all = sorted(df["descripcion"].dropna().unique().tolist())
+
 tpm    = find_first(vars_all, "tasa", "política") or find_first(vars_all, "tasa de política")
 pases  = find_first(vars_all, "tasa", "pases") or find_first(vars_all, "operaciones", "pase")
 badlar = find_first(vars_all, "badlar")
@@ -52,7 +55,10 @@ wide_full = (
     .sort_index()
 )
 
-# Rango + frecuencia (con prioridad: rango pisa gobierno)
+# =========================
+# Rango + frecuencia
+#  - la función range_controls ya hace: si tocas Rango rápido, pisa Gobierno y lo limpia
+# =========================
 dmin, dmax = wide_full.index.min(), wide_full.index.max()
 d_ini, d_fin, freq_label = range_controls(dmin, dmax, key="tasas")
 freq = "D" if freq_label.startswith("Diaria") else "M"
@@ -65,28 +71,32 @@ if wide_vis.empty:
     st.warning("El rango/frecuencia seleccionados dejan las series sin datos.")
     st.stop()
 
-# Clasificación por tipo
+# =========================
+# Clasificación por tipo → define ejes
+# =========================
 def is_percent_name(name: str) -> bool:
     s = name.lower()
     tokens = ["%", "en %", " por ciento", "tna", "tea", "variación", "variacion", "yoy", "mom", "interanual", "mensual"]
     return any(t in s for t in tokens)
 
-left_series  = [n for n in sel if is_percent_name(n)]
-right_series = [n for n in sel if n not in left_series]
+left_series  = [n for n in sel if is_percent_name(n)]          # tasas / variaciones
+right_series = [n for n in sel if n not in left_series]        # niveles (base, reservas, etc.)
 
-# si quedaron todas de un lado, no mostramos y2
 use_y2 = len(left_series) > 0 and len(right_series) > 0
 if not use_y2:
     left_series = sel.copy()
     right_series = []
 
+# =========================
 # Figura
+# =========================
 fig = go.Figure()
 palette = ["#60A5FA", "#F87171", "#34D399"]
 
 for i, name in enumerate(left_series):
     s = wide_vis[name].dropna()
-    if s.empty: continue
+    if s.empty: 
+        continue
     fig.add_trace(go.Scatter(
         x=s.index, y=s.values, mode="lines",
         name=name, line=dict(width=2, color=palette[i % len(palette)]),
@@ -95,7 +105,8 @@ for i, name in enumerate(left_series):
 
 for j, name in enumerate(right_series):
     s = wide_vis[name].dropna()
-    if s.empty: continue
+    if s.empty: 
+        continue
     color = palette[(len(left_series) + j) % len(palette)]
     fig.add_trace(go.Scatter(
         x=s.index, y=s.values, mode="lines",
@@ -103,8 +114,11 @@ for j, name in enumerate(right_series):
         yaxis="y2", hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
     ))
 
-# Rangos con padding y ticks
+# =========================
+# Rango y ticks (FIX: el rango ya NO depende de los ticks “lindos”)
+# =========================
 def with_pad(vmin: float, vmax: float, pct: float = 0.05):
+    """Padding simétrico del 5% (mínimo epsilon) para que nada quede recortado."""
     if not np.isfinite(vmin) or not np.isfinite(vmax):
         return vmin, vmax
     if vmax == vmin:
@@ -114,91 +128,98 @@ def with_pad(vmin: float, vmax: float, pct: float = 0.05):
     pad = max(span * pct, 1e-9)
     return vmin - pad, vmax + pad
 
-# Izquierdo
-left_ticks, y_range = [], None
+# --- Eje izquierdo
+left_ticks, y_range = None, None
 if left_series:
     left_vals = pd.concat([wide_vis[n].dropna() for n in left_series], axis=0)
     lmin, lmax = float(left_vals.min()), float(left_vals.max())
     lmin_p, lmax_p = with_pad(lmin, lmax)
-    lt = nice_ticks(lmin_p, lmax_p, max_ticks=7)
-    left_ticks = lt or [lmin_p, lmax_p]
-    y_range = [left_ticks[0], left_ticks[-1]] if lt else [lmin_p, lmax_p]
+    y_range = [lmin_p, lmax_p]                     # <-- RANGO REAL con padding (no los ticks)
+    left_ticks = nice_ticks(lmin_p, lmax_p, max_ticks=7)
 
-# Derecho
-rticks, rrange = [], (None, None)
+# --- Eje derecho
+rticks, r0, r1 = None, None, None
+right_ticktext = None
 if use_y2:
     right_vals = pd.concat([wide_vis[n].dropna() for n in right_series], axis=0)
     rmin_raw, rmax_raw = float(right_vals.min()), float(right_vals.max())
-    rmin, rmax = with_pad(rmin_raw, rmax_raw)
-    rticks, (r0, r1) = aligned_right_ticks_round(left_ticks, rmin, rmax)
-    # asegurar inclusión
-    if r0 is not None and r0 > rmin:
-        shift = r0 - rmin
-        r0 -= shift; r1 -= shift; rticks = [t - shift for t in rticks]
-    if r1 is not None and r1 < rmax:
-        add = rmax - r1
-        r1 += add; rticks = [t + add for t in rticks]
-    if rmin_raw >= 0 and r0 is not None and r0 < 0:
-        rticks = [t - r0 for t in rticks]; r1 = r1 - r0; r0 = 0.0
-    rrange = (r0, r1)
+    rmin_p, rmax_p = with_pad(rmin_raw, rmax_raw)
 
-def si_label(x: float) -> str:
-    if x is None or not np.isfinite(x): return ""
-    sign = "-" if x < 0 else ""
-    v = abs(x)
-    if v >= 1e9:  txt = f"{v/1e9:.0f}B" if v/1e9 >= 10 else f"{v/1e9:.1f}B"
-    elif v >= 1e6: txt = f"{v/1e6:.0f}M" if v/1e6 >= 10 else f"{v/1e6:.1f}M"
-    elif v >= 1e3: txt = f"{v/1e3:.0f}K" if v/1e3 >= 10 else f"{v/1e3:.1f}K"
-    else:         txt = f"{v:.0f}"
-    return (sign + txt).replace(".0K","K").replace(".0M","M").replace(".0B","B")
+    # alineamos con la grilla del izq, pero el RANGO es el real con padding
+    rticks, (r0, r1) = aligned_right_ticks_round(left_ticks or [], rmin_p, rmax_p)
 
-right_ticktext = [si_label(v) for v in rticks] if rticks else []
+    # garantía de que los ticks caen dentro del rango (solo por estética)
+    if rticks:
+        rticks = [t for t in rticks if (t >= rmin_p and t <= rmax_p)]
+        if not rticks:  # fallback
+            rticks = nice_ticks(rmin_p, rmax_p, max_ticks=6)
 
+    # si todos los datos del derecho son >= 0, pegamos piso en 0
+    if rmin_raw >= 0:
+        rmin_p = max(0.0, rmin_p)
+
+    # etiquetas K/M/B
+    def si_label(x: float) -> str:
+        if x is None or not np.isfinite(x): 
+            return ""
+        sign = "-" if x < 0 else ""
+        v = abs(x)
+        if v >= 1e9:  txt = f"{v/1e9:.1f}B"
+        elif v >= 1e6: txt = f"{v/1e6:.1f}M"
+        elif v >= 1e3: txt = f"{v/1e3:.1f}K"
+        else:         txt = f"{v:.0f}"
+        return (sign + txt).replace(".0K","K").replace(".0M","M").replace(".0B","B")
+    right_ticktext = [si_label(v) for v in (rticks or [])]
+
+# =========================
 # Layout
+# =========================
 uirev = f"{d_ini}-{d_fin}-{freq}-{'|'.join(sel)}"
 fig.update_layout(
     template="plotly_dark",
     height=620,
     margin=dict(t=30, b=90, l=70, r=90),
     legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
-    uirevision=uirev,
+    uirevision=uirev,  # evita “saltos” al tocar controles
 )
 fig.update_xaxes(title_text="Fecha", showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside")
 
-# Izquierdo: si es % mostramos números plain (no ~s) para no ver K/M en tasas
-left_is_percent = True if left_series and any(is_percent_name(n) for n in left_series) else False
+left_is_percent = bool(left_series and any(is_percent_name(n) for n in left_series))
 fig.update_yaxes(
     title_text="Eje izq",
-    showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
+    showline=True, linewidth=1, linecolor="#E5E7EB",
     showgrid=True, gridcolor="#1F2937",
+    ticks="outside",
     tickmode="array" if left_ticks else "auto",
     tickvals=left_ticks if left_ticks else None,
     tickformat=(".0f" if left_is_percent else "~s"),
-    range=y_range if (y_range and np.isfinite(y_range[0]) and np.isfinite(y_range[1])) else None,
+    range=y_range if y_range else None,
     autorange=False if y_range else True,
     zeroline=False,
 )
 
 if use_y2:
-    r0, r1 = rrange
     fig.update_layout(
         yaxis2=dict(
             title="Eje der",
-            overlaying="y", side="right",
+            overlaying="y",
+            side="right",
+            showline=True, linewidth=1, linecolor="#E5E7EB",
             showgrid=False,
             tickmode="array" if rticks else "auto",
             tickvals=rticks if rticks else None,
             ticktext=right_ticktext if rticks else None,
-            range=[r0, r1] if (r0 is not None and r1 is not None) else None,
-            autorange=False if (r0 is not None and r1 is not None) else True,
-            showline=True, linewidth=1, linecolor="#E5E7EB",
+            range=[rmin_p, rmax_p],
+            autorange=False,
             zeroline=False,
         )
     )
 
 st.plotly_chart(fig, use_container_width=True)
 
+# =========================
 # KPIs (sobre la primera seleccionada)
+# =========================
 principal = sel[0]
 serie_full = (
     df[df["descripcion"] == principal]
@@ -215,6 +236,9 @@ serie_visible = resample_series(
 mom, yoy, d_per = compute_kpis(serie_full, serie_visible)
 fmt = lambda x: ("—" if x is None or pd.isna(x) else f"{x:,.2f}%")
 c1, c2, c3 = st.columns(3)
-with c1: kpi("Mensual (MoM)", fmt(mom), help_text="Variación del último dato mensual vs el mes previo (fin de mes).")
-with c2: kpi("Interanual (YoY)", fmt(yoy), help_text="Variación del último dato mensual vs el mismo mes de hace 12 meses.")
-with c3: kpi("Δ en el período", fmt(d_per), help_text="Variación entre primer y último dato del rango visible (frecuencia elegida).")
+with c1:
+    kpi("Mensual (MoM)", fmt(mom), help_text="Variación del último dato mensual vs el mes previo (fin de mes).")
+with c2:
+    kpi("Interanual (YoY)", fmt(yoy), help_text="Variación del último dato mensual vs el mismo mes de hace 12 meses.")
+with c3:
+    kpi("Δ en el período", fmt(d_per), help_text="Variación entre primer y último dato del rango visible (frecuencia elegida).")
