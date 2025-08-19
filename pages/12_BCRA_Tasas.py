@@ -39,7 +39,7 @@ sel = st.multiselect(
     opciones,
     default=predef if predef else None,
     max_selections=3,
-    help="Podés combinar tasas (en %) con agregados o reservas. Si las escalas difieren mucho, se usa doble eje Y.",
+    help="Podés combinar tasas (en %) con agregados o reservas. Si hay tasas y niveles juntos se usa doble eje Y.",
     key="tasas_sel",
 )
 if not sel:
@@ -52,9 +52,9 @@ wide_full = (
     .sort_index()
 )
 
-# Rango + frecuencia (auto-prioridad)
+# Rango + frecuencia (con prioridad: rango pisa gobierno)
 dmin, dmax = wide_full.index.min(), wide_full.index.max()
-d_ini, d_fin, freq_label = range_controls(dmin, dmax, key="tasas", priority="auto")
+d_ini, d_fin, freq_label = range_controls(dmin, dmax, key="tasas")
 freq = "D" if freq_label.startswith("Diaria") else "M"
 
 wide_vis = wide_full.loc[d_ini:d_fin]
@@ -65,34 +65,24 @@ if wide_vis.empty:
     st.warning("El rango/frecuencia seleccionados dejan las series sin datos.")
     st.stop()
 
-# Doble eje heurístico
-THRESH = 5.0
-def _range(s: pd.Series) -> float:
-    s = s.dropna()
-    return 0.0 if len(s) == 0 else float(s.max() - s.min())
+# Clasificación por tipo
+def is_percent_name(name: str) -> bool:
+    s = name.lower()
+    tokens = ["%", "en %", " por ciento", "tna", "tea", "variación", "variacion", "yoy", "mom", "interanual", "mensual"]
+    return any(t in s for t in tokens)
 
-left_series = [sel[0]]
-right_series, left_range, right_range = [], _range(wide_vis[sel[0]]), None
-for name in sel[1:]:
-    r = _range(wide_vis[name])
-    if left_range == 0:
-        left_series.append(name); left_range = r
-    else:
-        if r / max(left_range, 1e-12) > THRESH:
-            right_series.append(name)
-            right_range = r if right_range is None else max(right_range, r)
-        else:
-            left_series.append(name); left_range = max(left_range, r)
-if not left_series and right_series:
-    left_series.append(right_series.pop(0))
+left_series  = [n for n in sel if is_percent_name(n)]
+right_series = [n for n in sel if n not in left_series]
+
+# si quedaron todas de un lado, no mostramos y2
+use_y2 = len(left_series) > 0 and len(right_series) > 0
+if not use_y2:
+    left_series = sel.copy()
+    right_series = []
 
 # Figura
 fig = go.Figure()
 palette = ["#60A5FA", "#F87171", "#34D399"]
-
-def looks_like_percent(name: str) -> bool:
-    s = name.lower()
-    return ("% " in s) or ("en %" in s) or (" tna" in s) or (" tea" in s) or ("por ciento" in s)
 
 for i, name in enumerate(left_series):
     s = wide_vis[name].dropna()
@@ -113,39 +103,41 @@ for j, name in enumerate(right_series):
         yaxis="y2", hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
     ))
 
-# Rangos con padding
+# Rangos con padding y ticks
+def with_pad(vmin: float, vmax: float, pct: float = 0.05):
+    if not np.isfinite(vmin) or not np.isfinite(vmax):
+        return vmin, vmax
+    if vmax == vmin:
+        pad = max(1.0, abs(vmin) * pct)
+        return vmin - pad, vmax + pad
+    span = vmax - vmin
+    pad = max(span * pct, 1e-9)
+    return vmin - pad, vmax + pad
+
+# Izquierdo
 left_ticks, y_range = [], None
 if left_series:
     left_vals = pd.concat([wide_vis[n].dropna() for n in left_series], axis=0)
     lmin, lmax = float(left_vals.min()), float(left_vals.max())
-    if lmax == lmin:
-        pad = max(1.0, abs(lmin) * 0.05)
-        y_range = [lmin - pad, lmax + pad]
-    else:
-        span = lmax - lmin
-        pad = max(span * 0.05, 1e-9)  # 5% o mínimo
-        lmin_p, lmax_p = lmin - pad, lmax + pad
-        lt = nice_ticks(lmin_p, lmax_p, max_ticks=7)
-        left_ticks = lt
-        y_range = [lt[0], lt[-1]] if lt else [lmin_p, lmax_p]
+    lmin_p, lmax_p = with_pad(lmin, lmax)
+    lt = nice_ticks(lmin_p, lmax_p, max_ticks=7)
+    left_ticks = lt or [lmin_p, lmax_p]
+    y_range = [left_ticks[0], left_ticks[-1]] if lt else [lmin_p, lmax_p]
 
+# Derecho
 rticks, rrange = [], (None, None)
-if right_series:
+if use_y2:
     right_vals = pd.concat([wide_vis[n].dropna() for n in right_series], axis=0)
     rmin_raw, rmax_raw = float(right_vals.min()), float(right_vals.max())
-    span_r = rmax_raw - rmin_raw
-    pad_r = max(span_r * 0.05, 1e-9)
-    rmin, rmax = rmin_raw - pad_r, rmax_raw + pad_r
-
+    rmin, rmax = with_pad(rmin_raw, rmax_raw)
     rticks, (r0, r1) = aligned_right_ticks_round(left_ticks, rmin, rmax)
-    # garantizar inclusión
+    # asegurar inclusión
     if r0 is not None and r0 > rmin:
         shift = r0 - rmin
         r0 -= shift; r1 -= shift; rticks = [t - shift for t in rticks]
     if r1 is not None and r1 < rmax:
         add = rmax - r1
         r1 += add; rticks = [t + add for t in rticks]
-    # nada de negativos si datos ≥0
     if rmin_raw >= 0 and r0 is not None and r0 < 0:
         rticks = [t - r0 for t in rticks]; r1 = r1 - r0; r0 = 0.0
     rrange = (r0, r1)
@@ -173,22 +165,21 @@ fig.update_layout(
 )
 fig.update_xaxes(title_text="Fecha", showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside")
 
-left_is_percent = any(looks_like_percent(n) for n in left_series) if left_series else False
-left_tickformat = ".0f" if left_is_percent else "~s"
-
+# Izquierdo: si es % mostramos números plain (no ~s) para no ver K/M en tasas
+left_is_percent = True if left_series and any(is_percent_name(n) for n in left_series) else False
 fig.update_yaxes(
     title_text="Eje izq",
     showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
     showgrid=True, gridcolor="#1F2937",
     tickmode="array" if left_ticks else "auto",
     tickvals=left_ticks if left_ticks else None,
-    tickformat=left_tickformat,
+    tickformat=(".0f" if left_is_percent else "~s"),
     range=y_range if (y_range and np.isfinite(y_range[0]) and np.isfinite(y_range[1])) else None,
     autorange=False if y_range else True,
     zeroline=False,
 )
 
-if right_series:
+if use_y2:
     r0, r1 = rrange
     fig.update_layout(
         yaxis2=dict(
@@ -207,7 +198,7 @@ if right_series:
 
 st.plotly_chart(fig, use_container_width=True)
 
-# KPIs
+# KPIs (sobre la primera seleccionada)
 principal = sel[0]
 serie_full = (
     df[df["descripcion"] == principal]
