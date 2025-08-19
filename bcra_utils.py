@@ -1,241 +1,123 @@
 # bcra_utils.py
 from __future__ import annotations
-import glob
+import json
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
-
-import numpy as np
 import pandas as pd
 
-
-# =========================================================
-#  CARGA DE DATOS
-# =========================================================
-
 DATA_DIR = Path("data")
-
-def _read_csv_any(path: Path) -> pd.DataFrame:
-    """Lee un CSV con columnas al menos ['fecha','valor'] y opcional 'descripcion'."""
-    df = pd.read_csv(path)
-    # normalizamos nombres
-    cols = {c: c.strip().lower() for c in df.columns}
-    df.rename(columns=cols, inplace=True)
-
-    # fecha
-    if "fecha" in df.columns:
-        df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce", utc=True).dt.tz_localize(None)
-    else:
-        return pd.DataFrame(columns=["fecha", "descripcion", "valor"])
-
-    # valor
-    if "valor" in df.columns:
-        df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
-    else:
-        num_cols = [c for c in df.columns if c != "fecha"]
-        if len(num_cols) == 1:
-            df.rename(columns={num_cols[0]: "valor"}, inplace=True)
-            df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
-        else:
-            return pd.DataFrame(columns=["fecha", "descripcion", "valor"])
-
-    # descripcion
-    if "descripcion" not in df.columns or df["descripcion"].isna().all():
-        desc = path.stem.replace("_", " ").strip().title()
-        df["descripcion"] = desc
-
-    return df[["fecha", "descripcion", "valor"]]
-
+CSV_MAIN = DATA_DIR / "base_monetaria.csv"      # histórico largo que ya guardamos
+JSON_CAT  = DATA_DIR / "catalogo_monetarias.json"  # opcional, si lo guardaste
 
 def load_bcra_long() -> pd.DataFrame:
     """
-    Devuelve un DataFrame long: ['fecha','descripcion','valor'].
-    Prioriza data/bcra_long.csv. Si no existe, concatena todos los CSVs de data/ y data/series/.
-    Fallback final: data/base_monetaria.csv si es lo único disponible.
+    Lee el CSV 'base_monetaria.csv' (formato largo: fecha, valor, descripcion)
+    y adjunta series derivadas útiles (BM/Reservas).
     """
-    paths: list[Path] = []
-    long_csv = DATA_DIR / "bcra_long.csv"
-    if long_csv.exists():
-        paths.append(long_csv)
-    else:
-        for p in sorted(glob.glob(str(DATA_DIR / "*.csv"))):
-            paths.append(Path(p))
-        series_dir = DATA_DIR / "series"
-        if series_dir.exists():
-            for p in sorted(glob.glob(str(series_dir / "*.csv"))):
-                paths.append(Path(p))
+    df = pd.read_csv(CSV_MAIN)
+    # normalizaciones
+    df["fecha"] = pd.to_datetime(df["fecha"], utc=True).dt.tz_localize(None)
+    # aseguramos float
+    df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
+    df = df.dropna(subset=["fecha", "valor", "descripcion"]).sort_values("fecha")
 
-    frames = []
-    for p in paths:
-        try:
-            df = _read_csv_any(p)
-            if not df.empty:
-                frames.append(df)
-        except Exception:
-            continue
+    # Adjuntamos derivadas
+    df = attach_derived(df)
+    return df
 
-    if not frames:
-        bm = DATA_DIR / "base_monetaria.csv"
-        if bm.exists():
-            return _read_csv_any(bm).sort_values("fecha").reset_index(drop=True)
-        return pd.DataFrame(columns=["fecha", "descripcion", "valor"])
+# ------------------------------
+# Helpers de búsqueda de series
+# ------------------------------
+def _slug(s: str) -> str:
+    return (s or "").lower()
 
-    out = pd.concat(frames, ignore_index=True)
-    out = out.dropna(subset=["fecha"]).sort_values("fecha").reset_index(drop=True)
-    return out
-
-
-# =========================================================
-#  HELPERS
-# =========================================================
-
-def find_first(candidates: Iterable[str], *keywords: str) -> Optional[str]:
+def find_first(lista: list[str], *palabras: str) -> str | None:
     """
-    Devuelve el primer string en 'candidates' que contenga todos los 'keywords'
-    (insensible a mayúsculas/minúsculas). Si no encuentra, None.
+    Devuelve el primer label de 'lista' que contenga todas las 'palabras'
+    (match case-insensitive).
     """
-    kws = [k.lower() for k in keywords if k]
-    for s in candidates:
-        s_l = (s or "").lower()
-        if all(kw in s_l for kw in kws):
-            return s
+    must = [p.lower() for p in palabras]
+    for x in lista:
+        lx = x.lower()
+        if all(p in lx for p in must):
+            return x
     return None
 
-
 def resample_series(s: pd.Series, freq: str = "D", how: str = "last") -> pd.Series:
-    """
-    Re-muestrea una serie temporal:
-      - freq="D" diaria, "M" mensual (fin de mes), etc.
-      - how="last" (default) o "mean"/"sum".
-    """
-    if s is None or len(s) == 0:
+    if s.empty:
         return s
-    s = pd.Series(s).sort_index()
-    rule = "M" if freq.upper().startswith("M") else freq
+    if how == "last":
+        return s.resample(freq).last()
     if how == "mean":
-        return s.resample(rule).mean()
-    if how == "sum":
-        return s.resample(rule).sum()
-    return s.resample(rule).last()
+        return s.resample(freq).mean()
+    return s.resample(freq).last()
 
-
-# =========================================================
-#  TICKS “LINDOS” Y EJE DERECHO ALINEADO
-# =========================================================
-
-def _nice_step(span: float, max_ticks: int = 7) -> float:
-    """Step agradable (1, 2, 2.5, 5 × 10^n) para cubrir 'span' con ~max_ticks."""
-    if span <= 0 or not np.isfinite(span):
-        return 1.0
-    raw = span / max(max_ticks, 2)
-    power = 10 ** np.floor(np.log10(raw))
-    for mult in [1, 2, 2.5, 5, 10]:
-        step = mult * power
-        if span / step <= max_ticks:
-            return float(step)
-    return float(10 * power)
-
-
-def nice_ticks(vmin: float, vmax: float, max_ticks: int = 7) -> list[float]:
-    """Genera ticks “redondos” para el eje (incluye bordes expandidos si hace falta)."""
-    if not np.isfinite(vmin) or not np.isfinite(vmax):
-        return []
-    if vmin == vmax:
-        return [0] if vmin == 0 else [vmin, vmax]
-    lo, hi = (float(vmin), float(vmax)) if vmin < vmax else (float(vmax), float(vmin))
-    span = hi - lo
-    step = _nice_step(span, max_ticks=max_ticks)
-    start = np.floor(lo / step) * step
-    end = np.ceil(hi / step) * step
-    return list(np.arange(start, end + 0.5 * step, step))
-
-
-def aligned_right_ticks_round(
-    left_ticks: list[float],
-    right_min: float,
-    right_max: float,
-) -> Tuple[list[float], Tuple[float, float]]:
+# ------------------------------
+# Derivadas
+# ------------------------------
+def attach_derived(df_long: pd.DataFrame) -> pd.DataFrame:
     """
-    Alinea los ticks del eje derecho con las líneas de grilla del izquierdo y
-    redondea el rango derecho para etiquetas “lindas”.
-    Devuelve (right_ticks_alineados, (r0, r1)).
+    A partir del largo (fecha, valor, descripcion), crea:
+      • BM/Reservas (pesos por USD)  = [Base monetaria (M$)] / [Reservas (MUSD)]
+    y lo apendea al largo original.
     """
-    if not left_ticks or not np.isfinite(right_min) or not np.isfinite(right_max):
-        return [], (right_min, right_max)
+    if df_long.empty:
+        return df_long
 
-    l0, l1 = float(min(left_ticks)), float(max(left_ticks))
-    if l0 == l1 or right_min == right_max:
-        rt = nice_ticks(right_min, right_max)
-        return rt, (rt[0], rt[-1]) if rt else (right_min, right_max)
+    # Pasamos a ancho para combinar por fecha
+    wide = df_long.pivot_table(index="fecha", columns="descripcion", values="valor", aggfunc="last")
 
-    # mapeo lineal y = a*x + b
-    a = (right_max - right_min) / (l1 - l0)
-    b = right_min - a * l0
-    raw_rticks = [a * x + b for x in left_ticks]
-    rmin_m, rmax_m = min(raw_rticks), max(raw_rticks)
+    # Identificamos columnas clave
+    cols = wide.columns.tolist()
+    base = find_first(cols, "base", "monetaria", "millones de pesos")
+    reservas = find_first(cols, "reservas", "millones de dólares") or find_first(cols, "reservas", "usd")
 
-    rt_rounded = nice_ticks(rmin_m, rmax_m)
-    if not rt_rounded:
-        return raw_rticks, (rmin_m, rmax_m)
+    derived_frames = []
 
-    r0, r1 = rt_rounded[0], rt_rounded[-1]
-    a2 = (r1 - r0) / (l1 - l0)
-    b2 = r0 - a2 * l0
-    right_ticks_aligned = [a2 * x + b2 for x in left_ticks]
-    return right_ticks_aligned, (r0, r1)
+    if base and reservas:
+        # Ambas están en millones → el cociente queda en “pesos por USD”
+        serie = (wide[base] / wide[reservas]).rename("Benchmark CCL (BM/Reservas, $ por USD) – derivada")
+        d = serie.dropna().reset_index().rename(columns={0: "valor"})
+        d["descripcion"] = "Benchmark CCL (BM/Reservas, $ por USD) – derivada"
+        d = d[["fecha", "valor", "descripcion"]]
+        derived_frames.append(d)
 
+    if not derived_frames:
+        return df_long
 
-# =========================================================
-#  MÉTRICAS: MoM / YoY / Δ EN EL PERÍODO
-# =========================================================
+    df_der = pd.concat(derived_frames, ignore_index=True)
+    out = pd.concat([df_long, df_der], ignore_index=True).sort_values("fecha")
+    return out
 
-def _pct(a: float, b: float) -> Optional[float]:
-    try:
-        if b == 0 or not np.isfinite(a) or not np.isfinite(b):
-            return None
-        return (a / b - 1.0) * 100.0
-    except Exception:
-        return None
-
-
-def compute_kpis(
-    serie_full: pd.Series,
-    serie_visible: pd.Series,
-    end_date=None,  # mantenido por compatibilidad; se prioriza lo visible
-) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+# ------------------------------
+# KPIs centralizados
+# ------------------------------
+def compute_kpis(serie_full: pd.Series, serie_visible: pd.Series, d_fin) -> tuple[float | None, float | None, float | None]:
     """
-    KPIs robustos:
-      - MoM / YoY: sobre serie mensual (fin de mes) del histórico completo,
-        tomando como 'último' el MES del último dato VISIBLE en el gráfico.
-      - Δ en el período: primer vs último dato VISIBLE (con la frecuencia actual).
-    Retorna (mom, yoy, d_period) en % o None si no hay datos suficientes.
+    Devuelve (MoM, YoY, Delta periodo visible).
+    - MoM/YoY se calculan siempre sobre fin de mes del histórico completo (robusto).
+    - Δ periodo: primer vs último punto del rango visible (con frecuencia actual).
     """
-    if serie_full is None or len(serie_full) == 0:
+    if serie_full.empty:
         return None, None, None
 
-    s_full = pd.Series(serie_full).sort_index().dropna()
-    s_vis  = pd.Series(serie_visible).sort_index().dropna()
-
-    last_visible = s_vis.index.max() if len(s_vis) else None
-    if last_visible is None:
-        return None, None, None
-
-    # Serie mensual (fin de mes) para KPIs mensuales/interanuales
-    m = s_full.resample("M").last().dropna()
-    last_month_end = (pd.Timestamp(last_visible) + pd.offsets.MonthEnd(0))
-    m = m.loc[:last_month_end]
+    m = serie_full.resample("M").last().dropna()
+    # ultimo <= d_fin
+    m = m.loc[:d_fin] if len(m) else m
 
     mom = None
-    yoy = None
     if len(m) >= 2:
-        mom = _pct(m.iloc[-1], m.iloc[-2])
+        mom = (m.iloc[-1] / m.iloc[-2] - 1.0) * 100.0
+
+    yoy = None
     if len(m) >= 13:
-        ref_date = m.index[-1] - pd.DateOffset(years=1)
-        hist = m.loc[:ref_date]
-        if len(hist):
-            yoy = _pct(m.iloc[-1], hist.iloc[-1])
+        last_idx = m.index[-1]
+        ref = last_idx - pd.DateOffset(years=1)
+        if ref in m.index and m.loc[ref] != 0:
+            yoy = (m.loc[last_idx] / m.loc[ref] - 1.0) * 100.0
 
-    d_period = None
-    if len(s_vis) >= 2:
-        d_period = _pct(s_vis.iloc[-1], s_vis.iloc[0])
+    d_per = None
+    s = serie_visible.dropna()
+    if len(s) >= 2 and s.iloc[0] != 0:
+        d_per = (s.iloc[-1] / s.iloc[0] - 1.0) * 100.0
 
-    return mom, yoy, d_period
+    return mom, yoy, d_per
