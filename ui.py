@@ -98,42 +98,59 @@ def range_controls(
     key: str = "",
     show_government: bool = True,
 ) -> Tuple[dt.date, dt.date, str]:
+    """
+    Reglas:
+    - La última interacción gana.
+    - Si el usuario cambia Rango rápido → se limpia 'Gobierno' a '(ninguno)'.
+    - Si cambia Gobierno → queda seleccionado hasta que vuelva a tocar Rango.
+    """
     rr_key   = f"rr_{key}"
     gov_key  = f"gov_{key}"
     fq_key   = f"fq_{key}"
-    flag_rr  = f"flag_rr_{key}"
-    flag_gov = f"flag_gov_{key}"
-    if flag_rr not in st.session_state:  st.session_state[flag_rr] = 0
-    if flag_gov not in st.session_state: st.session_state[flag_gov] = 0
-    if gov_key not in st.session_state:  st.session_state[gov_key]  = "(ninguno)"
+    last_key = f"last_{key}"   # "rr" o "gov"
 
+    # estado inicial
+    if last_key not in st.session_state: st.session_state[last_key] = "rr"
+    if gov_key  not in st.session_state: st.session_state[gov_key]  = "(ninguno)"
+
+    # widgets
     col1, col2, col3 = st.columns([1, 1.4, 1])
+
+    def _on_rr_change():
+        # al tocar rango: es la última acción y limpiamos gobierno
+        st.session_state[last_key] = "rr"
+        st.session_state[gov_key]  = "(ninguno)"
+
     with col1:
         rango = st.selectbox(
             "Rango rápido",
             ["1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"],
             index=6,
             key=rr_key,
-            on_change=lambda: st.session_state.__setitem__(flag_rr, st.session_state[flag_rr] + 1),
+            on_change=_on_rr_change,
         )
+
     with col2:
         gov_label = "(ninguno)"
         if show_government:
-            if st.session_state[flag_rr] > st.session_state[flag_gov]:
-                st.session_state[gov_key] = "(ninguno)"   # limpiar si cambió rango
+            def _on_gov_change():
+                st.session_state[last_key] = "gov"
             gov_label = st.selectbox(
-                "Gobierno (opcional)",
+                "Gobierno",
                 [g[0] for g in _GOV_PERIODS],
                 index=[g[0] for g in _GOV_PERIODS].index(st.session_state[gov_key]),
                 key=gov_key,
-                on_change=lambda: st.session_state.__setitem__(flag_gov, st.session_state[flag_gov] + 1),
+                on_change=_on_gov_change,
             )
+
     with col3:
         freq_label = st.selectbox("Frecuencia", ["Diaria", "Mensual (fin de mes)"], index=0, key=fq_key)
 
+    # fechas base
     dmin = (dmin.date() if hasattr(dmin, "date") else dmin)
     dmax = (dmax.date() if hasattr(dmax, "date") else dmax)
 
+    # helpers
     def _range_from_quick():
         today = dmax
         if rango == "1 mes":
@@ -148,7 +165,7 @@ def range_controls(
             d_ini = dt.date(today.year, 1, 1)
         elif rango == "2 años":
             d_ini = max(dmin, today - dt.timedelta(days=365 * 2))
-        else:
+        else:  # Máximo
             d_ini = dmin
         return d_ini, dmax
 
@@ -158,8 +175,8 @@ def range_controls(
         gfin_d = _parse_date(gfin) or dmax
         return max(dmin, gini_d), min(dmax, gfin_d)
 
-    # prioridad: si el último click fue Gobierno y está seteado, gana; sino gana Rango rápido
-    if show_government and st.session_state[flag_gov] > st.session_state[flag_rr] and st.session_state[gov_key] != "(ninguno)":
+    # decisión: última acción gana
+    if show_government and st.session_state[last_key] == "gov" and st.session_state[gov_key] != "(ninguno)":
         d_ini, d_fin = _range_from_gov(st.session_state[gov_key])
     else:
         d_ini, d_fin = _range_from_quick()
