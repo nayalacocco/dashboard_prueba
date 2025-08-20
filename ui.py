@@ -197,9 +197,9 @@ def card(title: str, body_md: str, page_path: Optional[str], icon: str = "📊")
 
 # -------------------------------------------------------------------
 # Controles de rango + Gobierno + Frecuencia
-# - última acción gana
-# - si elegís Rango rápido -> limpia Gobierno
-# - si elegís Gobierno -> limpia Rango rápido (muestra '(ninguno)')
+#   - última acción gana
+#   - si elegís Rango rápido -> limpia Gobierno
+#   - si elegís Gobierno -> limpia Rango rápido (muestra '(ninguno)')
 # Devuelve: (d_ini, d_fin, freq_label)
 # -------------------------------------------------------------------
 _GOV_PERIODS = [
@@ -223,94 +223,111 @@ def range_controls(
     key: str = "",
     show_government: bool = True,
 ) -> Tuple[dt.date, dt.date, str]:
-    rr_key   = f"rr_{key}"
-    gov_key  = f"gov_{key}"
-    fq_key   = f"fq_{key}"
-    flag_rr  = f"flag_rr_{key}"
-    flag_gov = f"flag_gov_{key}"
+    # keys por página
+    rr_key   = f"rr_{key}"        # valor rango rápido
+    gov_key  = f"gov_{key}"       # valor gobierno
+    fq_key   = f"fq_{key}"        # frecuencia
+    rr_cnt   = f"rr_cnt_{key}"    # contador de cambios de rango
+    gov_cnt  = f"gov_cnt_{key}"   # contador de cambios de gobierno
 
-    if flag_rr  not in st.session_state: st.session_state[flag_rr]  = 0
-    if flag_gov not in st.session_state: st.session_state[flag_gov] = 0
-    if rr_key   not in st.session_state: st.session_state[rr_key]   = "Máximo"
-    if gov_key  not in st.session_state: st.session_state[gov_key]  = "(ninguno)"
+    # estado inicial
+    if rr_key  not in st.session_state:  st.session_state[rr_key]  = "(ninguno)"
+    if gov_key not in st.session_state:  st.session_state[gov_key] = "(ninguno)"
+    if rr_cnt  not in st.session_state:  st.session_state[rr_cnt]  = 0
+    if gov_cnt not in st.session_state:  st.session_state[gov_cnt] = 0
 
+    rr_options  = ["(ninguno)", "1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"]
+    gov_options = [g[0] for g in _GOV_PERIODS]
+
+    # widgets
     col1, col2, col3 = st.columns([1, 1.4, 1])
+
+    def _on_rr_change():
+        st.session_state[rr_cnt] += 1
+
+    def _on_gov_change():
+        st.session_state[gov_cnt] += 1
+
     with col1:
         rango = st.selectbox(
             "Rango rápido",
-            ["(ninguno)", "1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"],
-            index=["(ninguno)","1 mes","3 meses","6 meses","1 año","YTD","2 años","Máximo"].index(st.session_state[rr_key]),
+            rr_options,
+            index=rr_options.index(st.session_state[rr_key]),
             key=rr_key,
-            on_change=lambda: st.session_state.__setitem__(flag_rr, st.session_state[flag_rr] + 1),
+            on_change=_on_rr_change,
         )
     with col2:
-        gov_label = "(ninguno)"
         if show_government:
-            # si cambió rango (y no es '(ninguno)'), limpiamos gobierno
-            if st.session_state[flag_rr] > st.session_state[flag_gov] and st.session_state[rr_key] != "(ninguno)":
-                st.session_state[gov_key] = "(ninguno)"
             gov_label = st.selectbox(
                 "Gobierno",
-                [g[0] for g in _GOV_PERIODS],
-                index=[g[0] for g in _GOV_PERIODS].index(st.session_state[gov_key]),
+                gov_options,
+                index=gov_options.index(st.session_state[gov_key]),
                 key=gov_key,
-                on_change=lambda: st.session_state.__setitem__(flag_gov, st.session_state[flag_gov] + 1),
+                on_change=_on_gov_change,
             )
-            # si cambió gobierno (y no es '(ninguno)'), limpiamos rango rápido
-            if st.session_state[flag_gov] >= st.session_state[flag_rr] and st.session_state[gov_key] != "(ninguno)":
-                st.session_state[rr_key] = "(ninguno)"
-                rango = "(ninguno)"
+        else:
+            gov_label = "(ninguno)"
     with col3:
         freq_label = st.selectbox(
             "Frecuencia",
             ["Diaria", "Mensual (fin de mes)"],
-            index=0,
+            index=0 if st.session_state.get(fq_key) in (None, "Diaria") else 1,
             key=fq_key,
         )
 
-    # fechas base -> dates
+    # sincronización visual (limpieza del otro control)
+    rr_last, gov_last = st.session_state[rr_cnt], st.session_state[gov_cnt]
+
+    if rr_last > gov_last and show_government and st.session_state[gov_key] != "(ninguno)":
+        st.session_state[gov_key] = "(ninguno)"
+        st.experimental_rerun()
+    if gov_last > rr_last and st.session_state[rr_key] != "(ninguno)":
+        st.session_state[rr_key] = "(ninguno)"
+        st.experimental_rerun()
+
+    # normalizo tipos de fecha
     dmin = (dmin.date() if hasattr(dmin, "date") else dmin)
     dmax = (dmax.date() if hasattr(dmax, "date") else dmax)
 
-    def _range_from_quick(r: str):
+    def _range_from_quick(sel: str) -> Tuple[dt.date, dt.date] | None:
         today = dmax
-        if r == "(ninguno)":
+        if sel == "(ninguno)":
             return None
-        if r == "1 mes":
+        if sel == "1 mes":
             d_ini = max(dmin, today - dt.timedelta(days=31))
-        elif r == "3 meses":
+        elif sel == "3 meses":
             d_ini = max(dmin, today - dt.timedelta(days=92))
-        elif r == "6 meses":
+        elif sel == "6 meses":
             d_ini = max(dmin, today - dt.timedelta(days=183))
-        elif r == "1 año":
+        elif sel == "1 año":
             d_ini = max(dmin, today - dt.timedelta(days=365))
-        elif r == "YTD":
+        elif sel == "YTD":
             d_ini = dt.date(today.year, 1, 1)
-        elif r == "2 años":
+        elif sel == "2 años":
             d_ini = max(dmin, today - dt.timedelta(days=365 * 2))
-        else:  # Máximo
+        elif sel == "Máximo":
             d_ini = dmin
-        return (d_ini, dmax)
+        else:
+            return None
+        return d_ini, dmax
 
-    def _range_from_gov(label: str):
+    def _range_from_gov(label: str) -> Tuple[dt.date, dt.date] | None:
         if label == "(ninguno)":
             return None
         _, gini, gfin = next(g for g in _GOV_PERIODS if g[0] == label)
         gini_d = _parse_date(gini) or dmin
         gfin_d = _parse_date(gfin) or dmax
-        return (max(dmin, gini_d), min(dmax, gfin_d))
+        return max(dmin, gini_d), min(dmax, gfin_d)
 
     # última acción gana
-    gov_range = _range_from_gov(st.session_state[gov_key])
-    rr_range  = _range_from_quick(st.session_state[rr_key])
-
-    if gov_range and (st.session_state[flag_gov] >= st.session_state[flag_rr]):
-        d_ini, d_fin = gov_range
-    elif rr_range:
-        d_ini, d_fin = rr_range
+    if show_government and gov_last > rr_last and gov_label != "(ninguno)":
+        d_ini, d_fin = _range_from_gov(gov_label)
     else:
-        # si ambos '(ninguno)', usamos Máximo
-        d_ini, d_fin = dmin, dmax
+        rng = _range_from_quick(rango)
+        if rng:
+            d_ini, d_fin = rng
+        else:
+            d_ini, d_fin = dmin, dmax
 
     return d_ini, d_fin, freq_label
 
