@@ -130,8 +130,8 @@ fig.update_layout(
     template="atlas_dark",
     height=620,
     margin=dict(t=30, b=120, l=70, r=90),
-    legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
-    uirevision=None,  # fuerza re-encuadre siempre que cambie el gráfico
+    showlegend=False,   # << oculta la leyenda nativa de Plotly
+    uirevision=None,
 )
 
 fig.update_xaxes(
