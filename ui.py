@@ -239,15 +239,16 @@ def range_controls(
     rr_options  = ["(ninguno)", "1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"]
     gov_options = [g[0] for g in _GOV_PERIODS]
 
-    # --- LIMPIEZAS ANTES DE CREAR WIDGETS (evita exceptions por setear estado "tarde") ---
-    if st.session_state[rr_cnt] > st.session_state[gov_cnt] and st.session_state[rr_key] != "(ninguno)":
-        st.session_state[gov_key] = "(ninguno)"
-    if st.session_state[gov_cnt] > st.session_state[rr_cnt] and st.session_state[gov_key] != "(ninguno)":
-        st.session_state[rr_key] = "(ninguno)"
-
-    # callbacks que sólo incrementan contadores
-    def _on_rr_change():  st.session_state[rr_cnt]  += 1
-    def _on_gov_change(): st.session_state[gov_cnt] += 1
+    # Callbacks: cada select limpia al otro y marca “yo fui el último”
+    def _on_rr_change():
+        st.session_state[rr_cnt] += 1
+        if st.session_state[rr_key] != "(ninguno)":
+            st.session_state[gov_key] = "(ninguno)"   # limpiar gobierno
+    
+    def _on_gov_change():
+        st.session_state[gov_cnt] += 1
+        if st.session_state[gov_key] != "(ninguno)":
+            st.session_state[rr_key] = "(ninguno)"    # limpiar rango rápido
 
     col1, col2, col3 = st.columns([1, 1.4, 1])
       
