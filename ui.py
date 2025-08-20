@@ -101,31 +101,45 @@ def range_controls(
     """
     Reglas:
     - La última interacción gana.
-    - Si el usuario cambia Rango rápido → se limpia 'Gobierno' a '(ninguno)'.
-    - Si cambia Gobierno → queda seleccionado hasta que vuelva a tocar Rango.
+    - Al cambiar Rango rápido → se limpia Gobierno.
+    - Al cambiar Gobierno → Rango rápido queda visualmente en '(ninguno)'.
     """
-    rr_key   = f"rr_{key}"
-    gov_key  = f"gov_{key}"
-    fq_key   = f"fq_{key}"
-    last_key = f"last_{key}"   # "rr" o "gov"
+    rr_key     = f"rr_{key}"
+    gov_key    = f"gov_{key}"
+    fq_key     = f"fq_{key}"
+    last_key   = f"last_{key}"      # 'rr' o 'gov'
+    rr_val_key = f"rr_val_{key}"    # etiqueta visible del combo de rango
 
     # estado inicial
-    if last_key not in st.session_state: st.session_state[last_key] = "rr"
-    if gov_key  not in st.session_state: st.session_state[gov_key]  = "(ninguno)"
+    if last_key not in st.session_state:   st.session_state[last_key]   = "rr"
+    if gov_key  not in st.session_state:   st.session_state[gov_key]    = "(ninguno)"
+    if rr_val_key not in st.session_state: st.session_state[rr_val_key] = "Máximo"
+
+    # opciones (incluimos '(ninguno)' para poder mostrarlo cuando rige Gobierno)
+    RANGO_CHOICES = ["(ninguno)", "1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"]
+
+    # callbacks
+    def _on_rr_change():
+        st.session_state[last_key] = "rr"
+        st.session_state[gov_key]  = "(ninguno)"
+        # guardar lo que eligió el usuario en el combo
+        st.session_state[rr_val_key] = st.session_state.get(rr_key, "Máximo")
+
+    def _on_gov_change():
+        st.session_state[last_key] = "gov"
+        # al elegir gobierno, mostrar '(ninguno)' en el combo de rango
+        st.session_state[rr_val_key] = "(ninguno)"
 
     # widgets
     col1, col2, col3 = st.columns([1, 1.4, 1])
 
-    def _on_rr_change():
-        # al tocar rango: es la última acción y limpiamos gobierno
-        st.session_state[last_key] = "rr"
-        st.session_state[gov_key]  = "(ninguno)"
-
     with col1:
+        # índice visible del combo de rango
+        rr_index = RANGO_CHOICES.index(st.session_state[rr_val_key]) if st.session_state[rr_val_key] in RANGO_CHOICES else 0
         rango = st.selectbox(
             "Rango rápido",
-            ["1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"],
-            index=6,
+            RANGO_CHOICES,
+            index=rr_index,
             key=rr_key,
             on_change=_on_rr_change,
         )
@@ -133,12 +147,11 @@ def range_controls(
     with col2:
         gov_label = "(ninguno)"
         if show_government:
-            def _on_gov_change():
-                st.session_state[last_key] = "gov"
+            gov_index = [g[0] for g in _GOV_PERIODS].index(st.session_state[gov_key])
             gov_label = st.selectbox(
                 "Gobierno",
                 [g[0] for g in _GOV_PERIODS],
-                index=[g[0] for g in _GOV_PERIODS].index(st.session_state[gov_key]),
+                index=gov_index,
                 key=gov_key,
                 on_change=_on_gov_change,
             )
@@ -151,19 +164,21 @@ def range_controls(
     dmax = (dmax.date() if hasattr(dmax, "date") else dmax)
 
     # helpers
-    def _range_from_quick():
+    def _range_from_quick(label: str):
+        # si el combo está en '(ninguno)', usamos Máximo por detrás
+        label = "Máximo" if label == "(ninguno)" else label
         today = dmax
-        if rango == "1 mes":
+        if label == "1 mes":
             d_ini = max(dmin, today - dt.timedelta(days=31))
-        elif rango == "3 meses":
+        elif label == "3 meses":
             d_ini = max(dmin, today - dt.timedelta(days=92))
-        elif rango == "6 meses":
+        elif label == "6 meses":
             d_ini = max(dmin, today - dt.timedelta(days=183))
-        elif rango == "1 año":
+        elif label == "1 año":
             d_ini = max(dmin, today - dt.timedelta(days=365))
-        elif rango == "YTD":
+        elif label == "YTD":
             d_ini = dt.date(today.year, 1, 1)
-        elif rango == "2 años":
+        elif label == "2 años":
             d_ini = max(dmin, today - dt.timedelta(days=365 * 2))
         else:  # Máximo
             d_ini = dmin
@@ -179,7 +194,7 @@ def range_controls(
     if show_government and st.session_state[last_key] == "gov" and st.session_state[gov_key] != "(ninguno)":
         d_ini, d_fin = _range_from_gov(st.session_state[gov_key])
     else:
-        d_ini, d_fin = _range_from_quick()
+        d_ini, d_fin = _range_from_quick(st.session_state[rr_val_key])
 
     return d_ini, d_fin, freq_label
 
