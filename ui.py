@@ -199,7 +199,7 @@ def card(title: str, body_md: str, page_path: Optional[str], icon: str = "📊")
 # Controles de rango + Gobierno + Frecuencia
 #   - última acción gana
 #   - si elegís Rango rápido -> limpia Gobierno
-#   - si elegís Gobierno -> limpia Rango rápido (muestra '(ninguno)')
+#   - si elegís Gobierno -> limpia Rango rápido
 # Devuelve: (d_ini, d_fin, freq_label)
 # -------------------------------------------------------------------
 _GOV_PERIODS = [
@@ -223,31 +223,33 @@ def range_controls(
     key: str = "",
     show_government: bool = True,
 ) -> Tuple[dt.date, dt.date, str]:
-    # keys por página
-    rr_key   = f"rr_{key}"        # valor rango rápido
-    gov_key  = f"gov_{key}"       # valor gobierno
-    fq_key   = f"fq_{key}"        # frecuencia
-    rr_cnt   = f"rr_cnt_{key}"    # contador de cambios de rango
-    gov_cnt  = f"gov_cnt_{key}"   # contador de cambios de gobierno
+    rr_key   = f"rr_{key}"       # valor rango rápido
+    gov_key  = f"gov_{key}"      # valor gobierno
+    fq_key   = f"fq_{key}"       # frecuencia
+    rr_cnt   = f"rr_cnt_{key}"   # contador de cambios de rango
+    gov_cnt  = f"gov_cnt_{key}"  # contador de cambios de gobierno
 
     # estado inicial
     if rr_key  not in st.session_state:  st.session_state[rr_key]  = "(ninguno)"
     if gov_key not in st.session_state:  st.session_state[gov_key] = "(ninguno)"
     if rr_cnt  not in st.session_state:  st.session_state[rr_cnt]  = 0
     if gov_cnt not in st.session_state:  st.session_state[gov_cnt] = 0
+    if fq_key  not in st.session_state:  st.session_state[fq_key]  = "Diaria"
 
     rr_options  = ["(ninguno)", "1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"]
     gov_options = [g[0] for g in _GOV_PERIODS]
 
-    # widgets
+    # --- LIMPIEZAS ANTES DE CREAR WIDGETS (evita exceptions por setear estado "tarde") ---
+    if st.session_state[rr_cnt] > st.session_state[gov_cnt] and st.session_state[rr_key] != "(ninguno)":
+        st.session_state[gov_key] = "(ninguno)"
+    if st.session_state[gov_cnt] > st.session_state[rr_cnt] and st.session_state[gov_key] != "(ninguno)":
+        st.session_state[rr_key] = "(ninguno)"
+
+    # callbacks que sólo incrementan contadores
+    def _on_rr_change():  st.session_state[rr_cnt]  += 1
+    def _on_gov_change(): st.session_state[gov_cnt] += 1
+
     col1, col2, col3 = st.columns([1, 1.4, 1])
-
-    def _on_rr_change():
-        st.session_state[rr_cnt] += 1
-
-    def _on_gov_change():
-        st.session_state[gov_cnt] += 1
-
     with col1:
         rango = st.selectbox(
             "Rango rápido",
@@ -271,28 +273,18 @@ def range_controls(
         freq_label = st.selectbox(
             "Frecuencia",
             ["Diaria", "Mensual (fin de mes)"],
-            index=0 if st.session_state.get(fq_key) in (None, "Diaria") else 1,
+            index=0 if st.session_state[fq_key] == "Diaria" else 1,
             key=fq_key,
         )
 
-    # sincronización visual (limpieza del otro control)
-    rr_last, gov_last = st.session_state[rr_cnt], st.session_state[gov_cnt]
-
-    if rr_last > gov_last and show_government and st.session_state[gov_key] != "(ninguno)":
-        st.session_state[gov_key] = "(ninguno)"
-        st.experimental_rerun()
-    if gov_last > rr_last and st.session_state[rr_key] != "(ninguno)":
-        st.session_state[rr_key] = "(ninguno)"
-        st.experimental_rerun()
-
-    # normalizo tipos de fecha
+    # normalizo fechas
     dmin = (dmin.date() if hasattr(dmin, "date") else dmin)
     dmax = (dmax.date() if hasattr(dmax, "date") else dmax)
 
-    def _range_from_quick(sel: str) -> Tuple[dt.date, dt.date] | None:
-        today = dmax
+    def _range_from_quick(sel: str):
         if sel == "(ninguno)":
             return None
+        today = dmax
         if sel == "1 mes":
             d_ini = max(dmin, today - dt.timedelta(days=31))
         elif sel == "3 meses":
@@ -311,7 +303,7 @@ def range_controls(
             return None
         return d_ini, dmax
 
-    def _range_from_gov(label: str) -> Tuple[dt.date, dt.date] | None:
+    def _range_from_gov(label: str):
         if label == "(ninguno)":
             return None
         _, gini, gfin = next(g for g in _GOV_PERIODS if g[0] == label)
@@ -320,14 +312,11 @@ def range_controls(
         return max(dmin, gini_d), min(dmax, gfin_d)
 
     # última acción gana
-    if show_government and gov_last > rr_last and gov_label != "(ninguno)":
+    if show_government and st.session_state[gov_cnt] > st.session_state[rr_cnt] and gov_label != "(ninguno)":
         d_ini, d_fin = _range_from_gov(gov_label)
     else:
         rng = _range_from_quick(rango)
-        if rng:
-            d_ini, d_fin = rng
-        else:
-            d_ini, d_fin = dmin, dmax
+        d_ini, d_fin = rng if rng else (dmin, dmax)
 
     return d_ini, d_fin, freq_label
 
