@@ -250,6 +250,8 @@ def range_controls(
     def _on_gov_change(): st.session_state[gov_cnt] += 1
 
     col1, col2, col3 = st.columns([1, 1.4, 1])
+      
+    # --- RANGO RÁPIDO ---
     with col1:
         rango = st.selectbox(
             "Rango rápido",
@@ -258,6 +260,14 @@ def range_controls(
             key=rr_key,
             on_change=_on_rr_change,
         )
+
+     # si se eligió un rango (≠ "(ninguno)"), limpiamos Gobierno
+    if st.session_state[rr_key] != "(ninguno)" and st.session_state[gov_key] != "(ninguno)":
+        st.session_state[gov_key] = "(ninguno)"
+        # Hacemos que “rango” cuente como la última acción
+        st.session_state[rr_cnt] = max(st.session_state[rr_cnt], st.session_state[gov_cnt] + 1)
+
+    # --- GOBIERNO ---
     with col2:
         if show_government:
             gov_label = st.selectbox(
@@ -269,6 +279,8 @@ def range_controls(
             )
         else:
             gov_label = "(ninguno)"
+
+    # --- FRECUENCIA ---
     with col3:
         freq_label = st.selectbox(
             "Frecuencia",
