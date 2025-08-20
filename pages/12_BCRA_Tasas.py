@@ -69,7 +69,7 @@ if wide_vis.empty:
     st.stop()
 
 # =========================
-# Heurística: ¿qué va a la izquierda (tasas/%) y qué a la derecha (niveles)?
+# Heurística: izq (tasas/%) vs der (niveles)
 # =========================
 def is_percent_name(name: str) -> bool:
     s = name.lower()
@@ -88,16 +88,21 @@ if not left_series:  # si no hay ninguna tasa, todo a la izquierda (sin eje dere
 fig = go.Figure()
 palette = ["#60A5FA", "#F87171", "#34D399"]
 
+legend_left  = []  # (label, color)
+legend_right = []  # (label, color)
+
 # Izquierda
 for i, name in enumerate(left_series):
     s = wide_vis[name].dropna()
-    if s.empty: 
+    if s.empty:
         continue
+    color = palette[i % len(palette)]
+    legend_left.append((name, color))
     fig.add_trace(
         go.Scatter(
             x=s.index, y=s.values, mode="lines",
             name=name,
-            line=dict(width=2, color=palette[i % len(palette)]),
+            line=dict(width=2, color=color),
             yaxis="y",
             hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
         )
@@ -106,9 +111,10 @@ for i, name in enumerate(left_series):
 # Derecha
 for j, name in enumerate(right_series):
     s = wide_vis[name].dropna()
-    if s.empty: 
+    if s.empty:
         continue
     color = palette[(len(left_series) + j) % len(palette)]
+    legend_right.append((f"{name} [eje derecho]", color))
     fig.add_trace(
         go.Scatter(
             x=s.index, y=s.values, mode="lines",
@@ -119,13 +125,13 @@ for j, name in enumerate(right_series):
         )
     )
 
-# Layout base
+# Layout base (autorange verdadero: no se “pega” el zoom)
 fig.update_layout(
     template="atlas_dark",
     height=620,
-    margin=dict(t=30, b=90, l=70, r=90),
+    margin=dict(t=30, b=120, l=70, r=90),
     legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
-    uirevision=None,  # para que SIEMPRE re-encuadre
+    uirevision=None,  # fuerza re-encuadre siempre que cambie el gráfico
 )
 
 fig.update_xaxes(
@@ -139,7 +145,7 @@ fig.update_yaxes(
     title_text="Eje izq",
     showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
     showgrid=True, gridcolor="#1F2937",
-    autorange=True,           # << clave: encuadra siempre
+    autorange=True,
     tickmode="auto",
     tickformat=(".0f" if left_is_percent else "~s"),
     zeroline=False,
@@ -153,7 +159,7 @@ if right_series:
             overlaying="y", side="right",
             showline=True, linewidth=1, linecolor="#E5E7EB",
             showgrid=False,
-            autorange=True,       # << clave
+            autorange=True,
             tickmode="auto",
             tickformat="~s",
             zeroline=False,
@@ -161,6 +167,51 @@ if right_series:
     )
 
 st.plotly_chart(fig, use_container_width=True)
+
+# =========================
+# Leyenda custom: izquierda vs derecha
+# =========================
+if legend_left or legend_right:
+    rows_html = []
+    if legend_left:
+        left_items = "".join(
+            f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>'
+            for lbl, c in legend_left
+        )
+        rows_html.append(f'<div class="col"><div class="hdr">Eje izquierdo</div>{left_items}</div>')
+    if legend_right:
+        right_items = "".join(
+            f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>'
+            for lbl, c in legend_right
+        )
+        rows_html.append(f'<div class="col right"><div class="hdr">Eje derecho</div>{right_items}</div>')
+
+    legend_html = f"""
+    <style>
+      .split-legend {{
+        display:flex; flex-wrap:wrap; gap:24px; justify-content:space-between;
+        margin-top:-8px; margin-bottom:10px;
+      }}
+      .split-legend .col {{ flex:1 1 380px; }}
+      .split-legend .col.right {{ text-align:right; }}
+      .split-legend .hdr {{
+        color:#9CA3AF; font-size:.9rem; margin-bottom:6px;
+      }}
+      .split-legend .li {{
+        color:#E5E7EB; font-size:.95rem; margin:4px 0; display:flex; align-items:center;
+        gap:8px;
+      }}
+      .split-legend .col.right .li {{ justify-content:flex-end; }}
+      .split-legend .dot {{
+        width:10px; height:10px; border-radius:50%;
+        display:inline-block;
+      }}
+    </style>
+    <div class="split-legend">
+      {''.join(rows_html)}
+    </div>
+    """
+    st.markdown(legend_html, unsafe_allow_html=True)
 
 # =========================
 # KPIs por serie (tripleta)
@@ -188,7 +239,7 @@ def kpis_for(name: str, color: str):
         tip_per="Variación entre primer y último dato del rango visible (frecuencia elegida).",
     )
 
-# Colores alineados a la figura
+# Colores alineados a la figura (mismo ciclo que arriba)
 palette_cycle = ["#60A5FA", "#F87171", "#34D399"]
 for idx, name in enumerate(sel):
     kpis_for(name, palette_cycle[idx % len(palette_cycle)])
