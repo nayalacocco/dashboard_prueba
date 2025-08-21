@@ -356,7 +356,6 @@ def kpi_triplet(
       </div>
     </div>
     """
-    """
     st.markdown(html, unsafe_allow_html=True)
 
 
