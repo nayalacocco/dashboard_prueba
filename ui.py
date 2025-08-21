@@ -137,7 +137,7 @@ def inject_css() -> None:
         /* Plotly margin fix */
         .js-plotly-plot { margin-bottom: 26px; }
 
-        /* --------- KPI por serie --------- */
+        /* --------- KPI por serie (tripleta) --------- */
         .series-kpi {
           border:1px solid #1F2937; border-radius:14px; padding:14px 16px;
           background:#0E1628; margin-top:14px;
@@ -169,6 +169,33 @@ def inject_css() -> None:
           border:6px solid transparent; border-top-color:#374151;
         }
         /* ---------------------------------- */
+
+        /* ---------- KPI simple (compatibilidad) ---------- */
+        .kpi-box{
+          background:#111827; border:1px solid #1F2937; border-radius:12px;
+          padding:14px 16px; margin-top:12px;
+        }
+        .kpi-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+        .kpi-title{ color:#9CA3AF; font-size:.9rem; }
+        .kpi-value{ color:#FFFFFF; font-size:1.6rem; font-weight:600; }
+        .kpi-help{
+          position:relative; display:inline-flex; align-items:center; justify-content:center;
+          width:18px; height:18px; border-radius:50%; border:1px solid #374151; color:#9CA3AF;
+          font-size:.8rem; font-weight:700; cursor:help; user-select:none;
+        }
+        .kpi-help:hover::after{
+          content: attr(data-tip);
+          position:absolute; left:50%; transform:translateX(-50%); bottom:130%;
+          background:#0B1222; color:#E5E7EB; border:1px solid #374151;
+          border-radius:8px; padding:8px 10px; width:max-content; max-width:320px;
+          white-space:normal; font-size:.85rem; line-height:1.2rem;
+          box-shadow:0 8px 20px rgba(0,0,0,.25); z-index:9999;
+        }
+        .kpi-help:hover::before{
+          content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
+          border:6px solid transparent; border-top-color:#374151;
+        }
+        /* -------------------------------------------------- */
         </style>
         """,
         unsafe_allow_html=True,
@@ -251,7 +278,7 @@ def range_controls(
             st.session_state[rr_key] = "(ninguno)"    # limpiar rango rápido
 
     col1, col2, col3 = st.columns([1, 1.4, 1])
-      
+
     # --- RANGO RÁPIDO ---
     with col1:
         rango = st.selectbox(
@@ -262,10 +289,9 @@ def range_controls(
             on_change=_on_rr_change,
         )
 
-     # si se eligió un rango (≠ "(ninguno)"), limpiamos Gobierno
+    # si se eligió un rango (≠ "(ninguno)"), limpiamos Gobierno y marcamos que RR fue el último
     if st.session_state[rr_key] != "(ninguno)" and st.session_state[gov_key] != "(ninguno)":
         st.session_state[gov_key] = "(ninguno)"
-        # Hacemos que “rango” cuente como la última acción
         st.session_state[rr_cnt] = max(st.session_state[rr_cnt], st.session_state[gov_cnt] + 1)
 
     # --- GOBIERNO ---
@@ -335,7 +361,7 @@ def range_controls(
 
 
 # -------------------------------------------------------------------
-# KPI “tripleta” por serie (MoM/YoY/Δ)
+# KPI “tripleta” por serie (MoM/YoY/Δ) — usado por Tasas y (nuevo) Agregados
 # -------------------------------------------------------------------
 def _fmt_pct(x):
     import math
@@ -371,6 +397,24 @@ def kpi_triplet(
           <div class="val">{_fmt_pct(d_per)}</div>
         </div>
       </div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+
+# -------------------------------------------------------------------
+# KPI simple (compatibilidad con páginas viejas que importan `kpi`)
+# -------------------------------------------------------------------
+def kpi(title: str, value: str, help_text: Optional[str] = None) -> None:
+    tip = f' data-tip="{help_text}"' if help_text else ""
+    help_html = f'<div class="kpi-help"{tip}>?</div>' if help_text else ""
+    html = f"""
+    <div class="kpi-box">
+      <div class="kpi-head">
+        <div class="kpi-title">{title}</div>
+        {help_html}
+      </div>
+      <div class="kpi-value">{value}</div>
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
