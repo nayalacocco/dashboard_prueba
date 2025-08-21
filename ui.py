@@ -45,7 +45,7 @@ pio.templates.default = "atlas_dark"
 
 
 # -------------------------------------------------------------------
-# CSS global (branding Atlas + mosaicos + KPIs)
+# CSS global (branding Atlas + mosaicos + KPIs + picker)
 # -------------------------------------------------------------------
 def inject_css() -> None:
     st.markdown(
@@ -187,8 +187,7 @@ def card(title: str, body_md: str, page_path: Optional[str], icon: str = "📊")
 
 
 # -------------------------------------------------------------------
-# Controles de rango + Gobierno + Frecuencia
-#   - última acción gana y limpia el otro selector
+# Controles de rango + Gobierno + Frecuencia (última acción gana)
 # -------------------------------------------------------------------
 _GOV_PERIODS = [
     ("(ninguno)", None, None),
@@ -211,11 +210,11 @@ def range_controls(
     key: str = "",
     show_government: bool = True,
 ) -> Tuple[dt.date, dt.date, str]:
-    rr_key   = f"rr_{key}"       # valor rango rápido
-    gov_key  = f"gov_{key}"      # valor gobierno
-    fq_key   = f"fq_{key}"       # frecuencia
-    rr_cnt   = f"rr_cnt_{key}"   # contador de cambios de rango
-    gov_cnt  = f"gov_cnt_{key}"  # contador de cambios de gobierno
+    rr_key   = f"rr_{key}"
+    gov_key  = f"gov_{key}"
+    fq_key   = f"fq_{key}"
+    rr_cnt   = f"rr_cnt_{key}"
+    gov_cnt  = f"gov_cnt_{key}"
 
     # estado inicial
     if rr_key  not in st.session_state:  st.session_state[rr_key]  = "(ninguno)"
@@ -227,7 +226,7 @@ def range_controls(
     rr_options  = ["(ninguno)", "1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"]
     gov_options = [g[0] for g in _GOV_PERIODS]
 
-    # Callbacks
+    # Callbacks: cada select limpia al otro y marca “yo fui el último”
     def _on_rr_change():
         st.session_state[rr_cnt] += 1
         if st.session_state[rr_key] != "(ninguno)":
@@ -360,8 +359,8 @@ def kpi_triplet(
 
 
 # -------------------------------------------------------------------
-# Series Picker (multiselect mejorado con header y chips)
-#   - sin warnings de default + session_state
+# Series Picker (multiselect mejorado con header; chips opcionales)
+#   - evita warning de default + session_state simultáneo
 # -------------------------------------------------------------------
 def _hash_color(name: str, palette: Sequence[str]) -> str:
     h = int(hashlib.md5(name.encode("utf-8")).hexdigest(), 16)
@@ -376,49 +375,58 @@ def series_picker(
     title: str = "Elegí hasta 3 series",
     subtitle: str | None = None,
     palette: Sequence[str] = ("#60A5FA", "#F87171", "#34D399", "#F59E0B", "#A78BFA"),
+    show_chips: bool = True,
 ) -> list[str]:
-    """Wrapper estético de st.multiselect con encabezado, contador y chips coloreadas."""
+    """
+    Selector futurista con glass panel + (opcional) chips de colores.
+    """
     placeholder = "Buscar / seleccionar…"
     state_key = f"picker_{key}"
 
-    # Si ya hay state, usamos eso y NO pasamos default al widget (evita warning)
-    use_default_for_widget = None
+    # Estado inicial: solo pasamos 'default' al widget si aún no hay state.
+    default_for_widget = None
     if state_key not in st.session_state:
-        use_default_for_widget = list(default) if default is not None else []
+        default_for_widget = list(default) if default is not None else []
 
     with st.container():
         st.markdown('<div class="series-picker">', unsafe_allow_html=True)
 
-        left, right = st.columns([1, 0.2])
-        with left:
-            count = len(st.session_state.get(state_key, use_default_for_widget or []))
-            sub = f"<span class='muted'>{subtitle}</span>" if subtitle else ""
+        # Encabezado: título + contador + botón limpiar
+        col1, col2 = st.columns([0.8, 0.2])
+        with col1:
+            current = st.session_state.get(state_key, default_for_widget or [])
+            count = len(current)
+            pill = f"<span class='pill'>{count}/{max_selections}</span>"
+            sub = f"<div class='muted'>{subtitle}</div>" if subtitle else ""
             st.markdown(
-                f"<div class='head'><div class='title'>{title} <span class='pill'>{count}/{max_selections}</span></div>{sub}</div>",
+                f"<div class='head'><div class='title'>🎛 {title} {pill}</div>{sub}</div>",
                 unsafe_allow_html=True,
             )
-        with right:
-            if st.button("Limpiar", key=f"clear_{key}", use_container_width=True):
+        with col2:
+            if st.button("⟳ Limpiar", key=f"clear_{key}", use_container_width=True):
                 st.session_state[state_key] = []
 
         sel = st.multiselect(
             label="",
             options=options,
-            default=use_default_for_widget,
+            default=default_for_widget,
             key=state_key,
             placeholder=placeholder,
             label_visibility="collapsed",
             max_selections=max_selections,
         )
 
-        # chips abajo
-        chips = []
-        for name in sel:
-            color = _hash_color(name, palette)
-            chips.append(
-                f"<span class='series-chip'><span class='series-dot' style='background:{color}'></span>{name}</span>"
-            )
-        st.markdown("<div class='chips'>" + ("".join(chips) if chips else "") + "</div>", unsafe_allow_html=True)
+        # Chips (opcionales)
+        if show_chips:
+            chips = []
+            for name in sel:
+                color = _hash_color(name, palette)
+                chips.append(
+                    f"<span class='series-chip' style='box-shadow:0 0 8px {color}; border-color:{color};'>"
+                    f"<span class='series-dot' style='background:{color}'></span>{name}</span>"
+                )
+            st.markdown("<div class='chips'>" + ("".join(chips) if chips else "") + "</div>", unsafe_allow_html=True)
+
         st.markdown("</div>", unsafe_allow_html=True)
 
     return sel
