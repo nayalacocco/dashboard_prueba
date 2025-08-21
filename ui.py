@@ -1,7 +1,8 @@
 # ui.py
 from __future__ import annotations
 import datetime as dt
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Sequence
+import hashlib
 
 import plotly.io as pio
 import streamlit as st
@@ -54,15 +55,8 @@ def inject_css() -> None:
         #MainMenu, footer { visibility: hidden; }
 
         /* Fondo general + tipografía */
-        .stApp {
-            background-color: #0A0E1A;
-            color: #FFFFFF;
-        }
-        .block-container {
-            max-width: 1200px;
-            padding-top: 1.1rem;
-            padding-bottom: 2rem;
-        }
+        .stApp { background-color: #0A0E1A; color: #FFFFFF; }
+        .block-container { max-width: 1200px; padding-top: 1.1rem; padding-bottom: 2rem; }
 
         /* Headers */
         h1, h2, h3, h4 { color: #FFFFFF; }
@@ -71,131 +65,95 @@ def inject_css() -> None:
         h3, .stMarkdown h3 { font-size: 1.05rem; }
 
         /* Texto secundario */
-        .stMarkdown, label, .stSelectbox, .stMultiSelect, .stRadio, .stSlider {
-            color: #9CA3AF !important;
-        }
+        .stMarkdown, label, .stSelectbox, .stMultiSelect, .stRadio, .stSlider { color: #9CA3AF !important; }
 
         /* Botones */
         .stButton>button {
             background: linear-gradient(90deg, #0D1B52, #2563EB);
-            color: white;
-            border-radius: 8px;
-            border: none;
+            color: white; border-radius: 8px; border: none;
         }
-        .stButton>button:hover {
-            background: linear-gradient(90deg, #2563EB, #3B82F6);
-        }
+        .stButton>button:hover { background: linear-gradient(90deg, #2563EB, #3B82F6); }
 
         /* Inputs */
         .stSelectbox, .stMultiSelect, .stTextInput, .stDateInput, .stNumberInput, .stSlider {
-            background-color: #111827 !important;
-            border-radius: 8px !important;
-            color: #FFFFFF !important;
+            background-color: #111827 !important; border-radius: 8px !important; color: #FFFFFF !important;
         }
 
         /* GRID de mosaicos (home) */
-        .tiles {
-            display: flex; flex-wrap: wrap; gap: 20px;
-            justify-content: center; align-items: stretch;
-            margin-top: 10px;
-        }
+        .tiles { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; align-items: stretch; margin-top: 10px; }
 
         /* Tarjeta */
         .card {
             width: 320px; max-width: 100%;
-            border-radius: 14px;
-            border: 1px solid #1F2937;
-            background: #111827;
+            border-radius: 14px; border: 1px solid #1F2937; background: #111827;
             box-shadow: 0 4px 16px rgba(15,23,42,0.06);
-            padding: 14px 16px;
-            display: flex; flex-direction: column; gap: 8px;
+            padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
             transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
         }
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 14px 30px rgba(2,6,23,.20);
-            border-color: rgba(37,99,235,.45);
-        }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(2,6,23,.20); border-color: rgba(37,99,235,.45); }
         .card h3 { margin: 0; font-size: 1.06rem; line-height: 1.25; }
         .muted { color: #9CA3AF; font-size: 0.93rem; }
 
-        /* Pie de tarjeta con link */
+        /* Pie de tarjeta */
         .card-footer { display: flex; justify-content: flex-end; margin-top: 6px; }
         a[data-testid="stPageLink"] {
-            background: #111827;
-            border: 1px solid #1F2937;
-            padding: 6px 10px;
-            border-radius: 10px;
-            text-decoration: none;
-            font-size: 0.92rem;
-            color: #FFFFFF;
+            background: #111827; border: 1px solid #1F2937; padding: 6px 10px; border-radius: 10px;
+            text-decoration: none; font-size: 0.92rem; color: #FFFFFF;
         }
-        a[data-testid="stPageLink"]:hover {
-            border-color: rgba(37,99,235,.55);
-        }
+        a[data-testid="stPageLink"]:hover { border-color: rgba(37,99,235,.55); }
 
         /* Plotly margin fix */
         .js-plotly-plot { margin-bottom: 26px; }
 
         /* --------- KPI por serie (tripleta) --------- */
-        .series-kpi {
-          border:1px solid #1F2937; border-radius:14px; padding:14px 16px;
-          background:#0E1628; margin-top:14px;
-        }
-        .series-kpi .head {
-          display:flex; align-items:center; gap:10px; margin-bottom:10px;
-        }
+        .series-kpi { border:1px solid #1F2937; border-radius:14px; padding:14px 16px; background:#0E1628; margin-top:14px; }
+        .series-kpi .head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
         .series-kpi .dot { width:10px; height:10px; border-radius:50%; }
         .series-kpi .title { color:#E5E7EB; font-weight:600; font-size:0.98rem; }
         .series-kpi .row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
-        .series-kpi .cell {
-          background:#111827; border:1px solid #1F2937; border-radius:10px; padding:10px 12px;
-        }
+        .series-kpi .cell { background:#111827; border:1px solid #1F2937; border-radius:10px; padding:10px 12px; }
         .series-kpi .cell .lbl { color:#9CA3AF; font-size:0.85rem; display:flex; align-items:center; gap:6px; }
         .series-kpi .cell .val { color:#FFFFFF; font-size:1.35rem; font-weight:600; margin-top:4px; }
-
         .series-kpi .q {
           position:relative; display:inline-flex; align-items:center; justify-content:center;
           width:16px; height:16px; border-radius:50%; border:1px solid #374151; color:#9CA3AF; font-size:.72rem; cursor:help;
         }
         .series-kpi .q:hover::after{
           content:attr(data-tip); position:absolute; left:50%; transform:translateX(-50%); bottom:130%;
-          background:#0B1222; color:#E5E7EB; border:1px solid #374151;
-          border-radius:8px; padding:8px 10px; width:max-content; max-width:320px;
-          white-space:normal; font-size:.85rem; line-height:1.2rem; box-shadow:0 8px 20px rgba(0,0,0,.25); z-index:9999;
+          background:#0B1222; color:#E5E7EB; border:1px solid #374151; border-radius:8px; padding:8px 10px;
+          width:max-content; max-width:320px; white-space:normal; font-size:.85rem; line-height:1.2rem;
+          box-shadow:0 8px 20px rgba(0,0,0,.25); z-index:9999;
         }
-        .series-kpi .q:hover::before{
-          content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
-          border:6px solid transparent; border-top-color:#374151;
-        }
-        /* ---------------------------------- */
+        .series-kpi .q:hover::before{ content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
+          border:6px solid transparent; border-top-color:#374151; }
 
-        /* ---------- KPI simple (compatibilidad) ---------- */
-        .kpi-box{
-          background:#111827; border:1px solid #1F2937; border-radius:12px;
-          padding:14px 16px; margin-top:12px;
-        }
+        /* ---------- KPI simple ---------- */
+        .kpi-box{ background:#111827; border:1px solid #1F2937; border-radius:12px; padding:14px 16px; margin-top:12px; }
         .kpi-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
         .kpi-title{ color:#9CA3AF; font-size:.9rem; }
         .kpi-value{ color:#FFFFFF; font-size:1.6rem; font-weight:600; }
         .kpi-help{
-          position:relative; display:inline-flex; align-items:center; justify-content:center;
-          width:18px; height:18px; border-radius:50%; border:1px solid #374151; color:#9CA3AF;
-          font-size:.8rem; font-weight:700; cursor:help; user-select:none;
+          position:relative; display:inline-flex; align-items:center; justify-content:space-between;
+          width:18px; height:18px; border-radius:50%; border:1px solid #374151; color:#9CA3AF; font-size:.8rem; cursor:help;
         }
         .kpi-help:hover::after{
-          content: attr(data-tip);
-          position:absolute; left:50%; transform:translateX(-50%); bottom:130%;
-          background:#0B1222; color:#E5E7EB; border:1px solid #374151;
-          border-radius:8px; padding:8px 10px; width:max-content; max-width:320px;
-          white-space:normal; font-size:.85rem; line-height:1.2rem;
+          content: attr(data-tip); position:absolute; left:50%; transform:translateX(-50%); bottom:130%;
+          background:#0B1222; color:#E5E7EB; border:1px solid #374151; border-radius:8px; padding:8px 10px;
+          width:max-content; max-width:320px; white-space:normal; font-size:.85rem; line-height:1.2rem;
           box-shadow:0 8px 20px rgba(0,0,0,.25); z-index:9999;
         }
-        .kpi-help:hover::before{
-          content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
-          border:6px solid transparent; border-top-color:#374151;
-        }
-        /* -------------------------------------------------- */
+        .kpi-help:hover::before{ content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
+          border:6px solid transparent; border-top-color:#374151; }
+
+        /* ---------- Series Picker ---------- */
+        .series-picker {border:1px solid #1F2937; border-radius:14px; background:#0E1628; padding:12px 12px 10px;}
+        .series-picker .head {display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;}
+        .series-picker .title {color:#E5E7EB; font-weight:600;}
+        .series-picker .muted {color:#9CA3AF; font-size:.9rem;}
+        .series-picker .chips {display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+        .series-chip {display:inline-flex; align-items:center; gap:8px; padding:6px 10px; background:#111827;
+                      border:1px solid #1F2937; color:#E5E7EB; border-radius:999px; font-size:.9rem;}
+        .series-dot {width:8px; height:8px; border-radius:50%;}
         </style>
         """,
         unsafe_allow_html=True,
@@ -224,10 +182,7 @@ def card(title: str, body_md: str, page_path: Optional[str], icon: str = "📊")
 
 # -------------------------------------------------------------------
 # Controles de rango + Gobierno + Frecuencia
-#   - última acción gana
-#   - si elegís Rango rápido -> limpia Gobierno
-#   - si elegís Gobierno -> limpia Rango rápido
-# Devuelve: (d_ini, d_fin, freq_label)
+#   - última acción gana y limpia el otro selector
 # -------------------------------------------------------------------
 _GOV_PERIODS = [
     ("(ninguno)", None, None),
@@ -270,16 +225,14 @@ def range_controls(
     def _on_rr_change():
         st.session_state[rr_cnt] += 1
         if st.session_state[rr_key] != "(ninguno)":
-            st.session_state[gov_key] = "(ninguno)"   # limpiar gobierno
-    
+            st.session_state[gov_key] = "(ninguno)"
     def _on_gov_change():
         st.session_state[gov_cnt] += 1
         if st.session_state[gov_key] != "(ninguno)":
-            st.session_state[rr_key] = "(ninguno)"    # limpiar rango rápido
+            st.session_state[rr_key] = "(ninguno)"
 
     col1, col2, col3 = st.columns([1, 1.4, 1])
 
-    # --- RANGO RÁPIDO ---
     with col1:
         rango = st.selectbox(
             "Rango rápido",
@@ -294,7 +247,6 @@ def range_controls(
         st.session_state[gov_key] = "(ninguno)"
         st.session_state[rr_cnt] = max(st.session_state[rr_cnt], st.session_state[gov_cnt] + 1)
 
-    # --- GOBIERNO ---
     with col2:
         if show_government:
             gov_label = st.selectbox(
@@ -307,7 +259,6 @@ def range_controls(
         else:
             gov_label = "(ninguno)"
 
-    # --- FRECUENCIA ---
     with col3:
         freq_label = st.selectbox(
             "Frecuencia",
@@ -361,7 +312,7 @@ def range_controls(
 
 
 # -------------------------------------------------------------------
-# KPI “tripleta” por serie (MoM/YoY/Δ) — usado por Tasas y (nuevo) Agregados
+# KPI “tripleta” por serie (MoM/YoY/Δ)
 # -------------------------------------------------------------------
 def _fmt_pct(x):
     import math
@@ -398,32 +349,16 @@ def kpi_triplet(
         </div>
       </div>
     </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
 
 
-
-
-# ---------- Series Picker (multiselect mejorado) ----------
-import hashlib
-from typing import Sequence
-
+# -------------------------------------------------------------------
+# Series Picker (multiselect mejorado con header y chips)
+# -------------------------------------------------------------------
 def _hash_color(name: str, palette: Sequence[str]) -> str:
     h = int(hashlib.md5(name.encode("utf-8")).hexdigest(), 16)
     return palette[h % len(palette)]
-
-_SERIES_PICKER_CSS = """
-<style>
-.series-picker {border:1px solid #1F2937; border-radius:14px; background:#0E1628; padding:12px 12px 10px;}
-.series-picker .head {display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;}
-.series-picker .title {color:#E5E7EB; font-weight:600;}
-.series-picker .muted {color:#9CA3AF; font-size:.9rem;}
-.series-picker .chips {display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
-.series-chip {display:inline-flex; align-items:center; gap:8px; padding:6px 10px; background:#111827;
-              border:1px solid #1F2937; color:#E5E7EB; border-radius:999px; font-size:.9rem;}
-.series-dot {width:8px; height:8px; border-radius:50%;}
-.series-clear {background:#131b2b;border:1px solid #263248;color:#c7d2fe;padding:6px 10px;border-radius:8px;cursor:pointer;}
-.series-clear:hover {border-color:#3b82f6;}
-</style>
-"""
 
 def series_picker(
     options: Sequence[str],
@@ -435,18 +370,12 @@ def series_picker(
     subtitle: str | None = None,
     palette: Sequence[str] = ("#60A5FA", "#F87171", "#34D399", "#F59E0B", "#A78BFA"),
 ) -> list[str]:
-    """
-    Reemplazo lindo de st.multiselect con:
-    - encabezado con contador y botón 'Limpiar'
-    - buscador/selector colapsado de label
-    - chips de seleccionadas con color consistente
-    """
+    """Wrapper estético de st.multiselect con encabezado y chips coloreadas."""
     placeholder = "Buscar / seleccionar…"
     state_key = f"picker_{key}"
     if state_key not in st.session_state and default is not None:
         st.session_state[state_key] = list(default)
 
-    st.markdown(_SERIES_PICKER_CSS, unsafe_allow_html=True)
     with st.container():
         st.markdown('<div class="series-picker">', unsafe_allow_html=True)
 
@@ -455,8 +384,7 @@ def series_picker(
             count = len(st.session_state.get(state_key, []))
             sub = f"<span class='muted'>{subtitle}</span>" if subtitle else ""
             st.markdown(
-                f"<div class='head'><div class='title'>{title} · "
-                f"{count}/{max_selections}</div>{sub}</div>",
+                f"<div class='head'><div class='title'>{title} · {count}/{max_selections}</div>{sub}</div>",
                 unsafe_allow_html=True,
             )
         with right:
@@ -478,22 +406,16 @@ def series_picker(
         for name in sel:
             color = _hash_color(name, palette)
             chips.append(
-                f"<span class='series-chip'><span class='series-dot' "
-                f"style='background:{color}'></span>{name}</span>"
+                f"<span class='series-chip'><span class='series-dot' style='background:{color}'></span>{name}</span>"
             )
-        st.markdown(
-            "<div class='chips'>" + ("".join(chips) if chips else "") + "</div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown("<div class='chips'>" + ("".join(chips) if chips else "") + "</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     return sel
-    """
-    st.markdown(html, unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------------
-# KPI simple (compatibilidad con páginas viejas que importan `kpi`)
+# KPI simple (compatibilidad con páginas que importan `kpi`)
 # -------------------------------------------------------------------
 def kpi(title: str, value: str, help_text: Optional[str] = None) -> None:
     tip = f' data-tip="{help_text}"' if help_text else ""
