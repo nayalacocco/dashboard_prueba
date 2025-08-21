@@ -1,7 +1,6 @@
 # pages/12_BCRA_Tasas.py
 import streamlit as st
 import plotly.graph_objects as go
-import pandas as pd
 
 from ui import inject_css, range_controls, kpi_triplet, series_picker
 from bcra_utils import (
@@ -35,7 +34,9 @@ base   = find_first(vars_all, "base", "monetaria")
 opciones = vars_all
 predef = [x for x in [badlar, base, pases, tpm, pfijo] if x and x in opciones][:3]
 
-# Selector futurista (chips + botón limpiar)
+# =========================
+# Selector (chips ocultas para NO duplicar leyenda)
+# =========================
 sel = series_picker(
     opciones,
     default=predef if predef else None,
@@ -43,6 +44,7 @@ sel = series_picker(
     key="tasas",
     title="Elegí hasta 3 series",
     subtitle="Podés combinar tasas (%) con agregados o reservas; si mezclás, usamos doble eje.",
+    show_chips=False,   # <<<< clave: no mostramos chips arriba
 )
 if not sel:
     st.info("Elegí al menos una serie para comenzar.")
@@ -127,18 +129,18 @@ for j, name in enumerate(right_series):
         )
     )
 
-# Layout base
+# Layout base (leyenda nativa OFF)
 fig.update_layout(
     template="atlas_dark",
     height=620,
     margin=dict(t=30, b=120, l=70, r=90),
-    showlegend=False,   # leyenda nativa off
-    uirevision=None,    # siempre re-encuadra
+    showlegend=False,   # <<<< IMPORTANTÍSIMO
+    uirevision=None,
 )
 
 fig.update_xaxes(
     title_text="Fecha",
-    showline=False, linewidth=1, linecolor="#E5E7EB", ticks="outside",
+    showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
 )
 
 left_is_percent = any(is_percent_name(n) for n in left_series) if left_series else False
@@ -186,6 +188,28 @@ st.plotly_chart(fig, use_container_width=True)
 # Leyenda custom: izquierda vs derecha (sin “[eje derecho]”)
 # =========================
 if legend_left or legend_right:
+    st.markdown(
+        """
+        <style>
+          .split-legend {
+            display:flex; flex-wrap:wrap; gap:24px; justify-content:space-between;
+            margin-top:-8px; margin-bottom:10px;
+          }
+          .split-legend .col { flex:1 1 380px; }
+          .split-legend .col.right { text-align:right; }
+          .split-legend .hdr { color:#9CA3AF; font-size:.9rem; margin-bottom:6px; }
+          .split-legend .li {
+            color:#E5E7EB; font-size:.95rem; margin:4px 0; display:flex; align-items:center; gap:8px;
+          }
+          .split-legend .col.right .li { justify-content:flex-end; }
+          .split-legend .dot {
+            width:10px; height:10px; border-radius:50%; display:inline-block;
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     rows_html = []
     if legend_left:
         left_items = "".join(
@@ -200,10 +224,7 @@ if legend_left or legend_right:
         )
         rows_html.append(f'<div class="col right"><div class="hdr">Eje derecho</div>{right_items}</div>')
 
-    st.markdown(
-        "<div class='split-legend'>" + ("".join(rows_html)) + "</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div class='split-legend'>" + ("".join(rows_html)) + "</div>", unsafe_allow_html=True)
 
 # =========================
 # KPIs por serie (tripleta)
