@@ -35,7 +35,7 @@ base   = find_first(vars_all, "base", "monetaria")
 opciones = vars_all
 predef = [x for x in [badlar, base, pases, tpm, pfijo] if x and x in opciones][:3]
 
-# Picker lindo (sin chips para no duplicar con la leyenda real)
+# Selector futurista (chips + botón limpiar)
 sel = series_picker(
     opciones,
     default=predef if predef else None,
@@ -43,12 +43,12 @@ sel = series_picker(
     key="tasas",
     title="Elegí hasta 3 series",
     subtitle="Podés combinar tasas (%) con agregados o reservas; si mezclás, usamos doble eje.",
-    show_chips=False,
 )
 if not sel:
     st.info("Elegí al menos una serie para comenzar.")
     st.stop()
 
+# Wide completo
 wide_full = (
     df[df["descripcion"].isin(sel)]
     .pivot(index="fecha", columns="descripcion", values="valor")
@@ -110,17 +110,17 @@ for i, name in enumerate(left_series):
         )
     )
 
-# Derecha
+# Derecha (nombres sin '[eje derecho]')
 for j, name in enumerate(right_series):
     s = wide_vis[name].dropna()
     if s.empty:
         continue
     color = palette[(len(left_series) + j) % len(palette)]
-    legend_right.append((f"{name} [eje derecho]", color))
+    legend_right.append((name, color))
     fig.add_trace(
         go.Scatter(
             x=s.index, y=s.values, mode="lines",
-            name=f"{name} [eje derecho]",
+            name=name,
             line=dict(width=2, color=color),
             yaxis="y2",
             hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
@@ -183,7 +183,7 @@ if log_right and right_series:
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# Leyenda custom (glass + glow)
+# Leyenda custom: izquierda vs derecha (sin “[eje derecho]”)
 # =========================
 if legend_left or legend_right:
     rows_html = []
@@ -200,26 +200,10 @@ if legend_left or legend_right:
         )
         rows_html.append(f'<div class="col right"><div class="hdr">Eje derecho</div>{right_items}</div>')
 
-    legend_html = f"""
-    <style>
-      .split-legend {{
-        display:flex; flex-wrap:wrap; gap:24px; justify-content:space-between;
-        margin-top:6px; margin-bottom:10px;
-      }}
-      .split-legend .col {{ flex:1 1 380px;
-        background:linear-gradient(180deg, rgba(17,24,39,.45), rgba(17,24,39,.25));
-        border:1px solid rgba(59,130,246,.18); border-radius:12px; padding:10px 12px; }}
-      .split-legend .col.right {{ text-align:right; }}
-      .split-legend .hdr {{ color:#a5b4fc; font-size:.9rem; margin-bottom:6px; letter-spacing:.2px; }}
-      .split-legend .li {{ color:#E5E7EB; font-size:.95rem; margin:4px 0; display:flex; align-items:center; gap:8px; }}
-      .split-legend .col.right .li {{ justify-content:flex-end; }}
-      .split-legend .dot {{ width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow:0 0 8px rgba(59,130,246,.35); }}
-    </style>
-    <div class="split-legend">
-      {''.join(rows_html)}
-    </div>
-    """
-    st.markdown(legend_html, unsafe_allow_html=True)
+    st.markdown(
+        "<div class='split-legend'>" + ("".join(rows_html)) + "</div>",
+        unsafe_allow_html=True,
+    )
 
 # =========================
 # KPIs por serie (tripleta)
