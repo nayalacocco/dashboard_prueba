@@ -34,9 +34,7 @@ base   = find_first(vars_all, "base", "monetaria")
 opciones = vars_all
 predef = [x for x in [badlar, base, pases, tpm, pfijo] if x and x in opciones][:3]
 
-# =========================
 # Selector (chips ocultas para NO duplicar leyenda)
-# =========================
 sel = series_picker(
     opciones,
     default=predef if predef else None,
@@ -44,7 +42,7 @@ sel = series_picker(
     key="tasas",
     title="Elegí hasta 3 series",
     subtitle="Podés combinar tasas (%) con agregados o reservas; si mezclás, usamos doble eje.",
-    show_chips=False,   # <<<< clave: no mostramos chips arriba
+    show_chips=False,   # clave para que no aparezcan “pills” arriba
 )
 if not sel:
     st.info("Elegí al menos una serie para comenzar.")
@@ -112,7 +110,7 @@ for i, name in enumerate(left_series):
         )
     )
 
-# Derecha (nombres sin '[eje derecho]')
+# Derecha (nombres sin “[eje derecho]”)
 for j, name in enumerate(right_series):
     s = wide_vis[name].dropna()
     if s.empty:
@@ -134,7 +132,7 @@ fig.update_layout(
     template="atlas_dark",
     height=620,
     margin=dict(t=30, b=120, l=70, r=90),
-    showlegend=False,   # <<<< IMPORTANTÍSIMO
+    showlegend=False,
     uirevision=None,
 )
 
