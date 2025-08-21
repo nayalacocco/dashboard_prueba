@@ -128,13 +128,7 @@ for j, name in enumerate(right_series):
     )
 
 # Layout base
-fig.update_layout(
-    template="atlas_dark",
-    height=620,
-    margin=dict(t=30, b=120, l=70, r=90),
-    showlegend=False,   # leyenda nativa off
-    uirevision=None,    # siempre re-encuadra
-)
+fig.update_layout(showlegend=False)
 
 fig.update_xaxes(
     title_text="Fecha",
