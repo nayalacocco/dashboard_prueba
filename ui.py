@@ -69,14 +69,14 @@ def inject_css() -> None:
 
         /* Botones */
         .stButton>button {
-          background: linear-gradient(90deg, #0D1B52, #2563EB);
-          color: white; border-radius: 8px; border: none;
+            background: linear-gradient(90deg, #0D1B52, #2563EB);
+            color: white; border-radius: 8px; border: none;
         }
         .stButton>button:hover { background: linear-gradient(90deg, #2563EB, #3B82F6); }
 
         /* Inputs */
         .stSelectbox, .stMultiSelect, .stTextInput, .stDateInput, .stNumberInput, .stSlider {
-          background-color: #111827 !important; border-radius: 8px !important; color: #FFFFFF !important;
+            background-color: #111827 !important; border-radius: 8px !important; color: #FFFFFF !important;
         }
 
         /* GRID de mosaicos (home) */
@@ -84,11 +84,11 @@ def inject_css() -> None:
 
         /* Tarjeta */
         .card {
-          width: 320px; max-width: 100%;
-          border-radius: 14px; border: 1px solid #1F2937; background: #111827;
-          box-shadow: 0 4px 16px rgba(15,23,42,0.06);
-          padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
-          transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+            width: 320px; max-width: 100%;
+            border-radius: 14px; border: 1px solid #1F2937; background: #111827;
+            box-shadow: 0 4px 16px rgba(15,23,42,0.06);
+            padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
         }
         .card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(2,6,23,.20); border-color: rgba(37,99,235,.45); }
         .card h3 { margin: 0; font-size: 1.06rem; line-height: 1.25; }
@@ -97,8 +97,8 @@ def inject_css() -> None:
         /* Pie de tarjeta */
         .card-footer { display: flex; justify-content: flex-end; margin-top: 6px; }
         a[data-testid="stPageLink"] {
-          background: #111827; border: 1px solid #1F2937; padding: 6px 10px; border-radius: 10px;
-          text-decoration: none; font-size: 0.92rem; color: #FFFFFF;
+            background: #111827; border: 1px solid #1F2937; padding: 6px 10px; border-radius: 10px;
+            text-decoration: none; font-size: 0.92rem; color: #FFFFFF;
         }
         a[data-testid="stPageLink"]:hover { border-color: rgba(37,99,235,.55); }
 
@@ -124,7 +124,7 @@ def inject_css() -> None:
           width:max-content; max-width:320px; white-space:normal; font-size:.85rem; line-height:1.2rem;
           box-shadow:0 8px 20px rgba(0,0,0,.25); z-index:9999;
         }
-        .series-kpi .q:hover::before { content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
+        .series-kpi .q:hover::before{ content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
           border:6px solid transparent; border-top-color:#374151; }
 
         /* ---------- KPI simple ---------- */
@@ -142,18 +142,31 @@ def inject_css() -> None:
           width:max-content; max-width:320px; white-space:normal; font-size:.85rem; line-height:1.2rem;
           box-shadow:0 8px 20px rgba(0,0,0,.25); z-index:9999;
         }
-        .kpi-help:hover::before { content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
+        .kpi-help:hover::before{ content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%;
           border:6px solid transparent; border-top-color:#374151; }
 
-        /* ---------- Series Picker ---------- */
-        .series-picker {border:1px solid #1F2937; border-radius:14px; background:#0E1628; padding:12px 12px 10px;}
-        .series-picker .head {display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;}
-        .series-picker .title {color:#E5E7EB; font-weight:600;}
-        .series-picker .muted {color:#9CA3AF; font-size:.9rem;}
-        .series-picker .chips {display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
-        .series-chip {display:inline-flex; align-items:center; gap:8px; padding:6px 10px; background:#111827;
-                      border:1px solid #1F2937; color:#E5E7EB; border-radius:999px; font-size:.9rem;}
-        .series-dot {width:8px; height:8px; border-radius:50%;}
+        /* ---------- Series Picker (glass) ---------- */
+        .picker-glass{
+          border:1px solid rgba(59,130,246,.25);
+          background: linear-gradient(180deg, rgba(17,24,39,.45), rgba(17,24,39,.25));
+          backdrop-filter: blur(6px);
+          border-radius: 14px;
+          padding: 10px 12px 8px;
+          box-shadow: 0 6px 20px rgba(2,6,23,.25) inset, 0 6px 20px rgba(2,6,23,.15);
+        }
+        .picker-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+        .picker-title{ color:#E5E7EB; font-weight:700; letter-spacing:.2px; }
+        .picker-sub{ color:#9CA3AF; font-size:.9rem; margin-top:2px; }
+        .picker-clear{
+          background:#0F172A; border:1px solid #263248; color:#c7d2fe;
+          padding:6px 10px; border-radius:9px; cursor:pointer; font-size:.9rem;
+        }
+        .picker-clear:hover{ border-color:#3b82f6; }
+        .picker-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+        .picker-chip{
+          display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
+          background:#0f1424; border:1px solid #1F2937; color:#E5E7EB; border-radius:999px; font-size:.9rem;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -354,13 +367,10 @@ def kpi_triplet(
 
 
 # -------------------------------------------------------------------
-# Series Picker (multiselect mejorado con header y chips)
-#   – evita el warning de default + session_state simultáneos
+# Series Picker (multiselect con header glass)
+#   - evita el warning de default + session_state simultáneos
+#   - por defecto NO muestra chips (para no duplicar la leyenda del chart)
 # -------------------------------------------------------------------
-def _hash_color(name: str, palette: Sequence[str]) -> str:
-    h = int(hashlib.md5(name.encode("utf-8")).hexdigest(), 16)
-    return palette[h % len(palette)]
-
 def series_picker(
     options: Sequence[str],
     default: Sequence[str] | None = None,
@@ -368,29 +378,27 @@ def series_picker(
     max_selections: int = 3,
     key: str = "series",
     title: str = "Elegí hasta 3 series",
-    subtitle: str | None = None,
-    palette: Sequence[str] = ("#60A5FA", "#F87171", "#34D399", "#F59E0B", "#A78BFA"),
+    subtitle: str | None = "Podés combinar tasas (%) con agregados o reservas; si mezclás, usamos doble eje.",
+    show_chips: bool = False,
 ) -> list[str]:
-    """Wrapper estético de st.multiselect con encabezado y chips coloreadas."""
     placeholder = "Buscar / seleccionar…"
     state_key = f"picker_{key}"
 
-    # Si ya hay valor en session_state, usamos ese y NO pasamos default al widget.
-    # Si no hay valor, dejamos que el widget use 'default' y no seteamos state a mano.
+    # Default solo si NO existe state (evita aviso amarillo)
     use_default_for_widget = None
-    if state_key not in st.session_state:
-        use_default_for_widget = list(default) if default is not None else []
+    if state_key not in st.session_state and default is not None:
+        use_default_for_widget = list(default)
 
     with st.container():
-        st.markdown('<div class="series-picker">', unsafe_allow_html=True)
+        st.markdown('<div class="picker-glass">', unsafe_allow_html=True)
 
-        left, right = st.columns([1, 0.2])
+        left, right = st.columns([1, 0.17])
         with left:
             current = st.session_state.get(state_key, use_default_for_widget or [])
             count = len(current)
-            sub = f"<span class='muted'>{subtitle}</span>" if subtitle else ""
+            sub = f"<div class='picker-sub'>{subtitle}</div>" if subtitle else ""
             st.markdown(
-                f"<div class='head'><div class='title'>{title} · {count}/{max_selections}</div>{sub}</div>",
+                f"<div class='picker-head'><div><div class='picker-title'>{title} · {count}/{max_selections}</div>{sub}</div></div>",
                 unsafe_allow_html=True,
             )
         with right:
@@ -400,28 +408,24 @@ def series_picker(
         sel = st.multiselect(
             label="",
             options=options,
-            default=use_default_for_widget,     # None si ya había state
+            default=use_default_for_widget,   # None si ya había state
             key=state_key,
             placeholder=placeholder,
             label_visibility="collapsed",
             max_selections=max_selections,
         )
 
-        # chips abajo
-        chips = []
-        for name in sel:
-            color = _hash_color(name, palette)
-            chips.append(
-                f"<span class='series-chip'><span class='series-dot' style='background:{color}'></span>{name}</span>"
-            )
-        st.markdown("<div class='chips'>" + ("".join(chips) if chips else "") + "</div>", unsafe_allow_html=True)
+        if show_chips:
+            chips = "".join(f"<span class='picker-chip'>{name}</span>" for name in sel)
+            st.markdown(f"<div class='picker-chips'>{chips}</div>", unsafe_allow_html=True)
+
         st.markdown("</div>", unsafe_allow_html=True)
 
     return sel
 
 
 # -------------------------------------------------------------------
-# KPI simple (compatibilidad con páginas que importan `kpi`)
+# KPI simple (compatibilidad)
 # -------------------------------------------------------------------
 def kpi(title: str, value: str, help_text: Optional[str] = None) -> None:
     tip = f' data-tip="{help_text}"' if help_text else ""
