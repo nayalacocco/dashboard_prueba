@@ -35,16 +35,15 @@ base   = find_first(vars_all, "base", "monetaria")
 opciones = vars_all
 predef = [x for x in [badlar, base, pases, tpm, pfijo] if x and x in opciones][:3]
 
-# =========================
-# Series Picker (reemplaza multiselect)
-# =========================
+# Picker lindo (sin chips para no duplicar con la leyenda real)
 sel = series_picker(
     opciones,
-    default=predef if predef else [],
+    default=predef if predef else None,
     max_selections=3,
     key="tasas",
     title="Elegí hasta 3 series",
     subtitle="Podés combinar tasas (%) con agregados o reservas; si mezclás, usamos doble eje.",
+    show_chips=False,
 )
 if not sel:
     st.info("Elegí al menos una serie para comenzar.")
@@ -168,7 +167,7 @@ if right_series:
     )
 
 # =========================
-# Escala logarítmica (visual) – valores mostrados siguen siendo nominales
+# Escala logarítmica (visual)
 # =========================
 log_col1, log_col2, _ = st.columns([1,1,2])
 with log_col1:
@@ -184,7 +183,7 @@ if log_right and right_series:
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# Leyenda custom: izquierda vs derecha
+# Leyenda custom (glass + glow)
 # =========================
 if legend_left or legend_right:
     rows_html = []
@@ -205,16 +204,16 @@ if legend_left or legend_right:
     <style>
       .split-legend {{
         display:flex; flex-wrap:wrap; gap:24px; justify-content:space-between;
-        margin-top:-8px; margin-bottom:10px;
+        margin-top:6px; margin-bottom:10px;
       }}
-      .split-legend .col {{ flex:1 1 380px; }}
+      .split-legend .col {{ flex:1 1 380px;
+        background:linear-gradient(180deg, rgba(17,24,39,.45), rgba(17,24,39,.25));
+        border:1px solid rgba(59,130,246,.18); border-radius:12px; padding:10px 12px; }}
       .split-legend .col.right {{ text-align:right; }}
-      .split-legend .hdr {{ color:#9CA3AF; font-size:.9rem; margin-bottom:6px; }}
-      .split-legend .li {{
-        color:#E5E7EB; font-size:.95rem; margin:4px 0; display:flex; align-items:center; gap:8px;
-      }}
+      .split-legend .hdr {{ color:#a5b4fc; font-size:.9rem; margin-bottom:6px; letter-spacing:.2px; }}
+      .split-legend .li {{ color:#E5E7EB; font-size:.95rem; margin:4px 0; display:flex; align-items:center; gap:8px; }}
       .split-legend .col.right .li {{ justify-content:flex-end; }}
-      .split-legend .dot {{ width:10px; height:10px; border-radius:50%; display:inline-block; }}
+      .split-legend .dot {{ width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow:0 0 8px rgba(59,130,246,.35); }}
     </style>
     <div class="split-legend">
       {''.join(rows_html)}
