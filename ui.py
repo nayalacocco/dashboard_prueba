@@ -398,6 +398,96 @@ def kpi_triplet(
         </div>
       </div>
     </div>
+
+
+
+
+# ---------- Series Picker (multiselect mejorado) ----------
+import hashlib
+from typing import Sequence
+
+def _hash_color(name: str, palette: Sequence[str]) -> str:
+    h = int(hashlib.md5(name.encode("utf-8")).hexdigest(), 16)
+    return palette[h % len(palette)]
+
+_SERIES_PICKER_CSS = """
+<style>
+.series-picker {border:1px solid #1F2937; border-radius:14px; background:#0E1628; padding:12px 12px 10px;}
+.series-picker .head {display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;}
+.series-picker .title {color:#E5E7EB; font-weight:600;}
+.series-picker .muted {color:#9CA3AF; font-size:.9rem;}
+.series-picker .chips {display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+.series-chip {display:inline-flex; align-items:center; gap:8px; padding:6px 10px; background:#111827;
+              border:1px solid #1F2937; color:#E5E7EB; border-radius:999px; font-size:.9rem;}
+.series-dot {width:8px; height:8px; border-radius:50%;}
+.series-clear {background:#131b2b;border:1px solid #263248;color:#c7d2fe;padding:6px 10px;border-radius:8px;cursor:pointer;}
+.series-clear:hover {border-color:#3b82f6;}
+</style>
+"""
+
+def series_picker(
+    options: Sequence[str],
+    default: Sequence[str] | None = None,
+    *,
+    max_selections: int = 3,
+    key: str = "series",
+    title: str = "Elegí hasta 3 series",
+    subtitle: str | None = None,
+    palette: Sequence[str] = ("#60A5FA", "#F87171", "#34D399", "#F59E0B", "#A78BFA"),
+) -> list[str]:
+    """
+    Reemplazo lindo de st.multiselect con:
+    - encabezado con contador y botón 'Limpiar'
+    - buscador/selector colapsado de label
+    - chips de seleccionadas con color consistente
+    """
+    placeholder = "Buscar / seleccionar…"
+    state_key = f"picker_{key}"
+    if state_key not in st.session_state and default is not None:
+        st.session_state[state_key] = list(default)
+
+    st.markdown(_SERIES_PICKER_CSS, unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="series-picker">', unsafe_allow_html=True)
+
+        left, right = st.columns([1, 0.2])
+        with left:
+            count = len(st.session_state.get(state_key, []))
+            sub = f"<span class='muted'>{subtitle}</span>" if subtitle else ""
+            st.markdown(
+                f"<div class='head'><div class='title'>{title} · "
+                f"{count}/{max_selections}</div>{sub}</div>",
+                unsafe_allow_html=True,
+            )
+        with right:
+            if st.button("Limpiar", key=f"clear_{key}", use_container_width=True):
+                st.session_state[state_key] = []
+
+        sel = st.multiselect(
+            label="",
+            options=options,
+            default=st.session_state.get(state_key, default or []),
+            key=state_key,
+            placeholder=placeholder,
+            label_visibility="collapsed",
+            max_selections=max_selections,
+        )
+
+        # chips abajo
+        chips = []
+        for name in sel:
+            color = _hash_color(name, palette)
+            chips.append(
+                f"<span class='series-chip'><span class='series-dot' "
+                f"style='background:{color}'></span>{name}</span>"
+            )
+        st.markdown(
+            "<div class='chips'>" + ("".join(chips) if chips else "") + "</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    return sel
     """
     st.markdown(html, unsafe_allow_html=True)
 
