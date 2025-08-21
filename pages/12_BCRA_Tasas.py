@@ -138,7 +138,7 @@ fig.update_layout(
 
 fig.update_xaxes(
     title_text="Fecha",
-    showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
+    showline=False, linewidth=1, linecolor="#E5E7EB", ticks="outside",
 )
 
 left_is_percent = any(is_percent_name(n) for n in left_series) if left_series else False
