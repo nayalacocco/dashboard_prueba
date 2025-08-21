@@ -125,13 +125,13 @@ for j, name in enumerate(right_series):
         )
     )
 
-# Layout base (autorange verdadero: no se “pega” el zoom)
+# Layout base
 fig.update_layout(
     template="atlas_dark",
     height=620,
     margin=dict(t=30, b=120, l=70, r=90),
-    showlegend=False,   # << oculta la leyenda nativa de Plotly
-    uirevision=None,
+    showlegend=False,   # leyenda nativa off
+    uirevision=None,    # siempre re-encuadra
 )
 
 fig.update_xaxes(
@@ -139,7 +139,6 @@ fig.update_xaxes(
     showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
 )
 
-# Eje izquierdo: grid visible
 left_is_percent = any(is_percent_name(n) for n in left_series) if left_series else False
 fig.update_yaxes(
     title_text="Eje izq",
@@ -151,7 +150,6 @@ fig.update_yaxes(
     zeroline=False,
 )
 
-# Eje derecho: sin grilla
 if right_series:
     fig.update_layout(
         yaxis2=dict(
@@ -165,6 +163,20 @@ if right_series:
             zeroline=False,
         )
     )
+
+# =========================
+# Escala logarítmica (visual) – valores mostrados siguen siendo nominales
+# =========================
+log_col1, log_col2, _ = st.columns([1,1,2])
+with log_col1:
+    log_left = st.toggle("Escala log (eje izq)", value=False, key="log_left_tasas")
+with log_col2:
+    log_right = st.toggle("Escala log (eje der)", value=False, key="log_right_tasas", disabled=(len(right_series)==0))
+
+if log_left:
+    fig.update_yaxes(type="log")
+if log_right and right_series:
+    fig.update_layout(yaxis2=dict(type="log"))
 
 st.plotly_chart(fig, use_container_width=True)
 
@@ -194,18 +206,12 @@ if legend_left or legend_right:
       }}
       .split-legend .col {{ flex:1 1 380px; }}
       .split-legend .col.right {{ text-align:right; }}
-      .split-legend .hdr {{
-        color:#9CA3AF; font-size:.9rem; margin-bottom:6px;
-      }}
+      .split-legend .hdr {{ color:#9CA3AF; font-size:.9rem; margin-bottom:6px; }}
       .split-legend .li {{
-        color:#E5E7EB; font-size:.95rem; margin:4px 0; display:flex; align-items:center;
-        gap:8px;
+        color:#E5E7EB; font-size:.95rem; margin:4px 0; display:flex; align-items:center; gap:8px;
       }}
       .split-legend .col.right .li {{ justify-content:flex-end; }}
-      .split-legend .dot {{
-        width:10px; height:10px; border-radius:50%;
-        display:inline-block;
-      }}
+      .split-legend .dot {{ width:10px; height:10px; border-radius:50%; display:inline-block; }}
     </style>
     <div class="split-legend">
       {''.join(rows_html)}
@@ -239,7 +245,6 @@ def kpis_for(name: str, color: str):
         tip_per="Variación entre primer y último dato del rango visible (frecuencia elegida).",
     )
 
-# Colores alineados a la figura (mismo ciclo que arriba)
 palette_cycle = ["#60A5FA", "#F87171", "#34D399"]
 for idx, name in enumerate(sel):
     kpis_for(name, palette_cycle[idx % len(palette_cycle)])
