@@ -3,7 +3,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 
-from ui import inject_css, range_controls, kpi_triplet
+from ui import inject_css, range_controls, kpi_triplet, series_picker
 from bcra_utils import (
     load_bcra_long,
     find_first,
@@ -35,13 +35,16 @@ base   = find_first(vars_all, "base", "monetaria")
 opciones = vars_all
 predef = [x for x in [badlar, base, pases, tpm, pfijo] if x and x in opciones][:3]
 
-sel = st.multiselect(
-    "Elegí hasta 3 series",
+# =========================
+# Series Picker (reemplaza multiselect)
+# =========================
+sel = series_picker(
     opciones,
-    default=predef if predef else None,
+    default=predef if predef else [],
     max_selections=3,
-    help="Podés combinar tasas (en %) con agregados o reservas. Si hay tasas y niveles juntos se usa doble eje Y.",
-    key="tasas_sel",
+    key="tasas",
+    title="Elegí hasta 3 series",
+    subtitle="Podés combinar tasas (%) con agregados o reservas; si mezclás, usamos doble eje.",
 )
 if not sel:
     st.info("Elegí al menos una serie para comenzar.")
