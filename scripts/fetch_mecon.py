@@ -3,31 +3,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# importa de tu módulo de utilidades (mecon_utils.py)
-from mecon_utils import fetch_mecon_to_disk, load_mecon_long
+# Asegura que el root del repo esté en el PYTHONPATH
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
 
-
-def main() -> int:
-    print("▶ Fetch MECON → data/mecon_long.parquet")
-
-    # baja y guarda parquet + catálogo
-    df = fetch_mecon_to_disk()
-
-    out = Path("data/mecon_long.parquet")
-    if out.exists():
-        print(f"✔ Guardado: {out} ({out.stat().st_size/1024:.1f} KiB)")
-
-    print(f"Filas totales: {len(df):,}")
-
-    # verificación rápida
-    try:
-        df2 = load_mecon_long()
-        assert len(df2) == len(df)
-    except Exception as e:
-        print("WARN: verificación de lectura falló:", e)
-
-    return 0
-
+from mecon_utils import fetch_mecon_to_disk, load_mecon_long  # noqa
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    df = fetch_mecon_to_disk()  # baja y guarda en data/mecon_long.parquet
+    print(f"OK MECON: {len(df):,} filas guardadas en data/mecon_long.parquet")
