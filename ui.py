@@ -1,4 +1,3 @@
-# ui.py
 from __future__ import annotations
 import datetime as dt
 from typing import Tuple, Optional, Sequence
@@ -168,7 +167,6 @@ def clean_label(name: str) -> str:
     for pat, rep in patterns:
         s = re.sub(pat, rep, s, flags=re.IGNORECASE)
 
-    # Recorta muy largo
     s = s.strip()
     if len(s) > 120:
         s = s[:117] + "…"
@@ -321,7 +319,6 @@ def _fmt_last(x, is_percent: bool):
         return "—"
     if is_percent:
         return _fmt_pct(x)
-    # miles bonito
     try:
         return f"{x:,.2f}"
     except Exception:
@@ -349,6 +346,39 @@ def kpi_quad(
           <div class="lbl">Último dato <span class="q" data-tip="{tip_last}">?</span></div>
           <div class="val">{_fmt_last(last_value, is_percent)}</div>
         </div>
+        <div class="cell">
+          <div class="lbl">Mensual (MoM) <span class="q" data-tip="{tip_mom}">?</span></div>
+          <div class="val">{_fmt_pct(mom)}</div>
+        </div>
+        <div class="cell">
+          <div class="lbl">Interanual (YoY) <span class="q" data-tip="{tip_yoy}">?</span></div>
+          <div class="val">{_fmt_pct(yoy)}</div>
+        </div>
+        <div class="cell">
+          <div class="lbl">Δ en el período <span class="q" data-tip="{tip_per}">?</span></div>
+          <div class="val">{_fmt_pct(d_per)}</div>
+        </div>
+      </div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+# --- COMPAT: KPI tripleta (MoM, YoY, Δ), usado por páginas viejas ---
+def kpi_triplet(
+    title: str,
+    color: str,
+    mom: Optional[float],
+    yoy: Optional[float],
+    d_per: Optional[float],
+    tip_mom: str = "", tip_yoy: str = "", tip_per: str = "",
+) -> None:
+    html = f"""
+    <div class="series-kpi">
+      <div class="head">
+        <div class="dot" style="background:{color};"></div>
+        <div class="title">{title}</div>
+      </div>
+      <div class="row3">
         <div class="cell">
           <div class="lbl">Mensual (MoM) <span class="q" data-tip="{tip_mom}">?</span></div>
           <div class="val">{_fmt_pct(mom)}</div>
