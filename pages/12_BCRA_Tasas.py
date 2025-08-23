@@ -2,7 +2,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 
-from ui import inject_css, range_controls, kpi_triplet, series_explorer_picker
+from ui import inject_css, range_controls, kpi_triplet, series_picker
 from bcra_utils import (
     load_bcra_long,
     find_first,
@@ -30,31 +30,34 @@ pases  = find_first(vars_all, "tasa", "pases") or find_first(vars_all, "operacio
 badlar = find_first(vars_all, "badlar")
 pfijo  = find_first(vars_all, "plazo", "fijo")
 base   = find_first(vars_all, "base", "monetaria")
-predef = [x for x in [tpm, badlar, pfijo, base, pases] if x and x in vars_all][:3]
 
-# =========================
-# Picker futurista (explorer)
-# =========================
-sel = series_explorer_picker(
-    vars_all,
+opciones = vars_all
+predef = [x for x in [badlar, base, pases, tpm, pfijo] if x and x in opciones][:3]
+
+# Selector (chips ocultas para NO duplicar leyenda)
+sel = series_picker(
+    opciones,
     default=predef if predef else None,
-    key="tasas",
     max_selections=3,
-    title="Elegí hasta 3 series para comparar.",
-    subtitle="Podés combinar tasas (%) con agregados o reservas. Si mezclás, usamos doble eje automáticamente.",
+    key="tasas",
+    title="Elegí hasta 3 series",
+    subtitle="Podés combinar tasas (%) con agregados o reservas; si mezclás, usamos doble eje.",
+    show_chips=False,   # clave para que no aparezcan “pills” arriba
 )
 if not sel:
     st.info("Elegí al menos una serie para comenzar.")
     st.stop()
 
-# =========================
-# Wide completo y rango/frecuencia
-# =========================
+# Wide completo
 wide_full = (
     df[df["descripcion"].isin(sel)]
     .pivot(index="fecha", columns="descripcion", values="valor")
     .sort_index()
 )
+
+# =========================
+# Rango + frecuencia (última acción gana)
+# =========================
 dmin, dmax = wide_full.index.min(), wide_full.index.max()
 d_ini, d_fin, freq_label = range_controls(dmin, dmax, key="tasas")
 freq = "D" if freq_label.startswith("Diaria") else "M"
@@ -68,7 +71,7 @@ if wide_vis.empty:
     st.stop()
 
 # =========================
-# Heurística ejes
+# Heurística: izq (tasas/%) vs der (niveles)
 # =========================
 def is_percent_name(name: str) -> bool:
     s = name.lower()
@@ -77,7 +80,7 @@ def is_percent_name(name: str) -> bool:
 
 left_series  = [n for n in sel if is_percent_name(n)]
 right_series = [n for n in sel if n not in left_series]
-if not left_series:
+if not left_series:  # si no hay ninguna tasa, todo a la izquierda (sin eje derecho)
     left_series = sel[:]
     right_series = []
 
@@ -87,8 +90,8 @@ if not left_series:
 fig = go.Figure()
 palette = ["#60A5FA", "#F87171", "#34D399"]
 
-legend_left  = []
-legend_right = []
+legend_left  = []  # (label, color)
+legend_right = []  # (label, color)
 
 # Izquierda
 for i, name in enumerate(left_series):
@@ -107,7 +110,7 @@ for i, name in enumerate(left_series):
         )
     )
 
-# Derecha
+# Derecha (nombres sin “[eje derecho]”)
 for j, name in enumerate(right_series):
     s = wide_vis[name].dropna()
     if s.empty:
@@ -124,6 +127,7 @@ for j, name in enumerate(right_series):
         )
     )
 
+# Layout base (leyenda nativa OFF)
 fig.update_layout(
     template="atlas_dark",
     height=620,
@@ -131,34 +135,46 @@ fig.update_layout(
     showlegend=False,
     uirevision=None,
 )
-fig.update_xaxes(title_text="Fecha", showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside")
+
+fig.update_xaxes(
+    title_text="Fecha",
+    showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
+)
 
 left_is_percent = any(is_percent_name(n) for n in left_series) if left_series else False
 fig.update_yaxes(
     title_text="Eje izq",
     showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
     showgrid=True, gridcolor="#1F2937",
-    autorange=True, tickmode="auto",
+    autorange=True,
+    tickmode="auto",
     tickformat=(".0f" if left_is_percent else "~s"),
     zeroline=False,
 )
+
 if right_series:
     fig.update_layout(
         yaxis2=dict(
             title="Eje der",
             overlaying="y", side="right",
             showline=True, linewidth=1, linecolor="#E5E7EB",
-            showgrid=False, autorange=True, tickmode="auto",
-            tickformat="~s", zeroline=False,
+            showgrid=False,
+            autorange=True,
+            tickmode="auto",
+            tickformat="~s",
+            zeroline=False,
         )
     )
 
-# Escala log (visual)
-lc1, lc2, _ = st.columns([1, 1, 2])
-with lc1:
+# =========================
+# Escala logarítmica (visual)
+# =========================
+log_col1, log_col2, _ = st.columns([1,1,2])
+with log_col1:
     log_left = st.toggle("Escala log (eje izq)", value=False, key="log_left_tasas")
-with lc2:
-    log_right = st.toggle("Escala log (eje der)", value=False, key="log_right_tasas", disabled=(len(right_series) == 0))
+with log_col2:
+    log_right = st.toggle("Escala log (eje der)", value=False, key="log_right_tasas", disabled=(len(right_series)==0))
+
 if log_left:
     fig.update_yaxes(type="log")
 if log_right and right_series:
@@ -166,19 +182,50 @@ if log_right and right_series:
 
 st.plotly_chart(fig, use_container_width=True)
 
-# Leyenda custom (sin “[eje derecho]”)
+# =========================
+# Leyenda custom: izquierda vs derecha (sin “[eje derecho]”)
+# =========================
 if legend_left or legend_right:
-    rows = []
+    st.markdown(
+        """
+        <style>
+          .split-legend {
+            display:flex; flex-wrap:wrap; gap:24px; justify-content:space-between;
+            margin-top:-8px; margin-bottom:10px;
+          }
+          .split-legend .col { flex:1 1 380px; }
+          .split-legend .col.right { text-align:right; }
+          .split-legend .hdr { color:#9CA3AF; font-size:.9rem; margin-bottom:6px; }
+          .split-legend .li {
+            color:#E5E7EB; font-size:.95rem; margin:4px 0; display:flex; align-items:center; gap:8px;
+          }
+          .split-legend .col.right .li { justify-content:flex-end; }
+          .split-legend .dot {
+            width:10px; height:10px; border-radius:50%; display:inline-block;
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    rows_html = []
     if legend_left:
-        left_items = "".join(f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>' for lbl, c in legend_left)
-        rows.append(f'<div class="col"><div class="hdr">Eje izquierdo</div>{left_items}</div>')
+        left_items = "".join(
+            f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>'
+            for lbl, c in legend_left
+        )
+        rows_html.append(f'<div class="col"><div class="hdr">Eje izquierdo</div>{left_items}</div>')
     if legend_right:
-        right_items = "".join(f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>' for lbl, c in legend_right)
-        rows.append(f'<div class="col right"><div class="hdr">Eje derecho</div>{right_items}</div>')
-    st.markdown("<div class='split-legend'>" + "".join(rows) + "</div>", unsafe_allow_html=True)
+        right_items = "".join(
+            f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>'
+            for lbl, c in legend_right
+        )
+        rows_html.append(f'<div class="col right"><div class="hdr">Eje derecho</div>{right_items}</div>')
+
+    st.markdown("<div class='split-legend'>" + ("".join(rows_html)) + "</div>", unsafe_allow_html=True)
 
 # =========================
-# KPIs
+# KPIs por serie (tripleta)
 # =========================
 def kpis_for(name: str, color: str):
     serie_full = (
