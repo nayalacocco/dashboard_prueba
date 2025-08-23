@@ -1,7 +1,15 @@
+# pages/12_BCRA_Tasas.py
 import streamlit as st
 import plotly.graph_objects as go
 
-from ui import inject_css, range_controls, kpi_quad, clean_label, looks_percent
+from ui import (
+    inject_css,
+    range_controls,
+    kpi_quad,
+    series_picker,
+    clean_label,
+    looks_percent,
+)
 from bcra_utils import (
     load_bcra_long,
     find_first,
@@ -33,14 +41,15 @@ base   = find_first(vars_all, "base", "monetaria")
 opciones = vars_all
 predef = [x for x in [badlar, base, pases, tpm, pfijo] if x and x in opciones][:3]
 
-# Selector
-sel = st.multiselect(
-    "Elegí hasta 3 series",
+# Selector (chips ocultas para NO duplicar leyenda)
+sel = series_picker(
     opciones,
     default=predef if predef else None,
     max_selections=3,
     key="tasas",
-    help="Podés combinar tasas (%) con agregados o reservas; si mezclás, usamos doble eje.",
+    title="Elegí hasta 3 series",
+    subtitle="Podés combinar tasas (%) con agregados o reservas; si mezclás, usamos doble eje.",
+    show_chips=False,
 )
 if not sel:
     st.info("Elegí al menos una serie para comenzar.")
@@ -54,7 +63,7 @@ wide_full = (
 )
 
 # =========================
-# Rango + frecuencia
+# Rango + frecuencia (última acción gana)
 # =========================
 dmin, dmax = wide_full.index.min(), wide_full.index.max()
 d_ini, d_fin, freq_label = range_controls(dmin, dmax, key="tasas")
@@ -73,7 +82,7 @@ if wide_vis.empty:
 # =========================
 left_series  = [n for n in sel if looks_percent(n)]
 right_series = [n for n in sel if n not in left_series]
-if not left_series:
+if not left_series:  # si no hay ninguna tasa, todo a la izquierda
     left_series = sel[:]
     right_series = []
 
@@ -83,7 +92,8 @@ if not left_series:
 fig = go.Figure()
 palette = ["#60A5FA", "#F87171", "#34D399"]
 
-legend_left, legend_right = [], []
+legend_left  = []  # (label, color)
+legend_right = []  # (label, color)
 
 # Izquierda
 for i, name in enumerate(left_series):
@@ -119,7 +129,7 @@ for j, name in enumerate(right_series):
         )
     )
 
-# Layout
+# Layout base (leyenda nativa OFF)
 fig.update_layout(
     template="atlas_dark",
     height=620,
@@ -127,33 +137,46 @@ fig.update_layout(
     showlegend=False,
     uirevision=None,
 )
-fig.update_xaxes(title_text="Fecha", showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside")
+
+fig.update_xaxes(
+    title_text="Fecha",
+    showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
+)
 
 left_is_percent = any(looks_percent(n) for n in left_series) if left_series else False
 fig.update_yaxes(
     title_text="Eje izq",
     showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside",
     showgrid=True, gridcolor="#1F2937",
-    autorange=True, tickmode="auto",
+    autorange=True,
+    tickmode="auto",
     tickformat=(".0f" if left_is_percent else "~s"),
     zeroline=False,
 )
+
 if right_series:
     fig.update_layout(
         yaxis2=dict(
-            title="Eje der", overlaying="y", side="right",
+            title="Eje der",
+            overlaying="y", side="right",
             showline=True, linewidth=1, linecolor="#E5E7EB",
-            showgrid=False, autorange=True, tickmode="auto",
-            tickformat="~s", zeroline=False,
+            showgrid=False,
+            autorange=True,
+            tickmode="auto",
+            tickformat="~s",
+            zeroline=False,
         )
     )
 
-# Escalas log
+# =========================
+# Escala logarítmica (visual)
+# =========================
 log_col1, log_col2, _ = st.columns([1,1,2])
 with log_col1:
     log_left = st.toggle("Escala log (eje izq)", value=False, key="log_left_tasas")
 with log_col2:
     log_right = st.toggle("Escala log (eje der)", value=False, key="log_right_tasas", disabled=(len(right_series)==0))
+
 if log_left:
     fig.update_yaxes(type="log")
 if log_right and right_series:
@@ -162,39 +185,56 @@ if log_right and right_series:
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# Leyenda custom
+# Leyenda custom: izquierda vs derecha
 # =========================
 if legend_left or legend_right:
     st.markdown(
         """
         <style>
-          .split-legend{display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between;margin-top:-8px;margin-bottom:10px;}
-          .split-legend .col{flex:1 1 380px;}
-          .split-legend .col.right{text-align:right;}
-          .split-legend .hdr{color:#9CA3AF;font-size:.9rem;margin-bottom:6px;}
-          .split-legend .li{color:#E5E7EB;font-size:.95rem;margin:4px 0;display:flex;align-items:center;gap:8px;}
-          .split-legend .col.right .li{justify-content:flex-end;}
-          .split-legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+          .split-legend {
+            display:flex; flex-wrap:wrap; gap:24px; justify-content:space-between;
+            margin-top:-8px; margin-bottom:10px;
+          }
+          .split-legend .col { flex:1 1 380px; }
+          .split-legend .col.right { text-align:right; }
+          .split-legend .hdr { color:#9CA3AF; font-size:.9rem; margin-bottom:6px; }
+          .split-legend .li {
+            color:#E5E7EB; font-size:.95rem; margin:4px 0; display:flex; align-items:center; gap:8px;
+          }
+          .split-legend .col.right .li { justify-content:flex-end; }
+          .split-legend .dot {
+            width:10px; height:10px; border-radius:50%; display:inline-block;
+          }
         </style>
         """,
         unsafe_allow_html=True,
     )
-    blocks = []
+
+    rows_html = []
     if legend_left:
-        l = "".join(f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>' for lbl,c in legend_left)
-        blocks.append(f'<div class="col"><div class="hdr">Eje izquierdo</div>{l}</div>')
+        left_items = "".join(
+            f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>'
+            for lbl, c in legend_left
+        )
+        rows_html.append(f'<div class="col"><div class="hdr">Eje izquierdo</div>{left_items}</div>')
     if legend_right:
-        r = "".join(f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>' for lbl,c in legend_right)
-        blocks.append(f'<div class="col right"><div class="hdr">Eje derecho</div>{r}</div>')
-    st.markdown("<div class='split-legend'>" + "".join(blocks) + "</div>", unsafe_allow_html=True)
+        right_items = "".join(
+            f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>'
+            for lbl, c in legend_right
+        )
+        rows_html.append(f'<div class="col right"><div class="hdr">Eje derecho</div>{right_items}</div>')
+
+    st.markdown("<div class='split-legend'>" + ("".join(rows_html)) + "</div>", unsafe_allow_html=True)
 
 # =========================
-# KPIs por serie (quad con Último dato)
+# KPIs por serie (con “Último dato”)
 # =========================
 def kpis_for(name: str, color: str):
     serie_full = (
         df[df["descripcion"] == name]
-        .set_index("fecha")["valor"].sort_index().astype(float)
+        .set_index("fecha")["valor"]
+        .sort_index()
+        .astype(float)
     )
     serie_visible = resample_series(
         wide_full[name].loc[d_ini:d_fin].dropna(),
@@ -202,4 +242,20 @@ def kpis_for(name: str, color: str):
         how="last",
     ).dropna()
 
-    last
+    mom, yoy, d_per = compute_kpis(serie_full, serie_visible)
+    last_val = float(serie_visible.iloc[-1]) if not serie_visible.empty else None
+    kpi_quad(
+        title=clean_label(name),
+        color=color,
+        last_value=last_val,
+        is_percent=looks_percent(name),
+        mom=mom, yoy=yoy, d_per=d_per,
+        tip_last="Último dato disponible en la frecuencia elegida.",
+        tip_mom="Variación del último dato mensual vs el mes previo (fin de mes).",
+        tip_yoy="Variación del último dato mensual vs el mismo mes de hace 12 meses.",
+        tip_per="Variación entre primer y último dato del rango visible.",
+    )
+
+palette_cycle = ["#60A5FA", "#F87171", "#34D399"]
+for idx, name in enumerate(sel):
+    kpis_for(name, palette_cycle[idx % len(palette_cycle)])
