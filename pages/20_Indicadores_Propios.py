@@ -25,7 +25,7 @@ def _fmt_value(x, unit: str) -> str:
         return "—"
     if unit == "ars_per_usd":
         # AR$/USD con separador de miles y 2 decimales
-        return f"${x:,.2f} ARS/USD}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"${x:,.2f} ARS/USD".replace(",", "X").replace(".", ",").replace("X", ".")
     if unit == "pct":
         return f"{x*100:,.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")
     # ratio simple
