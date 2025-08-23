@@ -1,40 +1,72 @@
-# pages/21_DatosAR_Series.py
+# pages/100_DatosAR_Series.py
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 
 from ui import inject_css, range_controls, clean_label, looks_percent, kpi_quad, series_picker
-from datosar_utils import load_datosar_long
+from datosar_utils import load_datosar_long, search_datosar, add_and_fetch, read_allowlist
 
 st.set_page_config(page_title="Series – Datos Argentina", layout="wide")
 inject_css()
 st.title("📊 Series de Datos Argentina")
 
-df = load_datosar_long()
-if df.empty:
-    st.warning("Todavía no hay datos locales de Datos Argentina. Corré el fetch primero (scripts/fetch_datosar.py).")
-    st.stop()
+st.caption("Buscá, agregá al catálogo local y graficá. El fetch nocturno leerá `data/datosar_allowlist.txt`.")
 
 # -------------------------
-# Opciones + labels “bonitos”
+# Panel de búsqueda / alta
 # -------------------------
-all_ids = sorted(df["id"].unique().tolist())
-# Armamos label mostrado como: [ID] descripción_limpia
+with st.expander("🔎 Buscar y agregar series al catálogo local", expanded=False):
+    qcol, lcol = st.columns([2,1])
+    with qcol:
+        q = st.text_input("Buscar por palabra clave (ej.: resultado primario, gasto total, ingresos, resultado financiero)", value="")
+    with lcol:
+        limit = st.number_input("Límite de resultados", min_value=5, max_value=200, value=50, step=5)
+    if st.button("Buscar"):
+        if not q.strip():
+            st.warning("Escribí un término de búsqueda.")
+        else:
+            results = search_datosar(q.strip(), int(limit))
+            if not results:
+                st.info("Sin resultados (o el endpoint de búsqueda de la API no devolvió nada). Probá otro término.")
+            else:
+                st.success(f"{len(results)} resultados")
+                # Selección
+                opts = [f"[{sid}] {title} — {src}" for sid, title, src in results]
+                pick = st.multiselect("Elegí series para agregar", options=opts)
+                if pick and st.button("➕ Agregar a catálogo y descargar"):
+                    ids = [p.split("]")[0][1:] for p in pick]
+                    with st.spinner("Agregando y descargando…"):
+                        add_and_fetch(ids)
+                    st.success("Listo. Actualizá la página para ver los nuevos datos si no aparecen automáticamente.")
+
+st.divider()
+
+# -------------------------
+# Carga local
+# -------------------------
+df = load_datosar_long()
+if df.empty:
+    st.warning("Todavía no hay datos locales de Datos Argentina. Buscá y agregá series arriba o corré el fetch `scripts/fetch_datosar.py`.")
+    st.stop()
+
+# Labels
 id2desc = (
     df.dropna(subset=["descripcion"])
       .drop_duplicates(subset=["id"])
       .set_index("id")["descripcion"]
       .to_dict()
 )
+all_ids = sorted(df["id"].unique().tolist())
 options = [f"[{sid}] {clean_label(id2desc.get(sid, sid))}" for sid in all_ids]
 lab2id  = {opt: opt.split("]")[0][1:] for opt in options}
 
-# Sugerencias: tomá los primeros 3 si existen
-default_opts = options[:3]
+# Defaults: si hay allowlist, tomamos hasta 3 primeros
+allow = read_allowlist()
+defaults = [f"[{sid}] {clean_label(id2desc.get(sid, sid))}" for sid in allow[:3] if sid in id2desc]
 
 sel_labels = series_picker(
     options,
-    default=default_opts if default_opts else None,
+    default=(defaults if defaults else options[:3]),
     max_selections=3,
     key="datosar",
     title="Elegí hasta 3 series",
@@ -48,7 +80,7 @@ if not sel_labels:
 sel_ids = [lab2id[x] for x in sel_labels]
 
 # -------------------------
-# Pivot ancho para graficar
+# Ancho para gráfico
 # -------------------------
 wide_full = (
     df[df["id"].isin(sel_ids)]
@@ -75,7 +107,7 @@ if wide_vis.empty:
     st.stop()
 
 # -------------------------
-# Heurística de ejes (usa looks_percent de ui)
+# Ejes
 # -------------------------
 left_ids  = [sid for sid in sel_ids if looks_percent(id2desc.get(sid, sid))]
 right_ids = [sid for sid in sel_ids if sid not in left_ids]
@@ -88,7 +120,6 @@ if not left_ids:
 fig = go.Figure()
 palette = ["#60A5FA", "#F87171", "#34D399"]
 
-# left
 for i, sid in enumerate(left_ids):
     s = wide_vis[sid].dropna()
     if s.empty: 
@@ -103,7 +134,6 @@ for i, sid in enumerate(left_ids):
         )
     )
 
-# right
 for j, sid in enumerate(right_ids):
     s = wide_vis[sid].dropna()
     if s.empty: 
@@ -124,9 +154,7 @@ fig.update_layout(
     margin=dict(t=30, b=80, l=70, r=90),
     showlegend=True,
 )
-
 fig.update_xaxes(title_text="Fecha", showline=True, linewidth=1, linecolor="#E5E7EB")
-
 fig.update_yaxes(
     title_text="Eje izq",
     showline=True, linewidth=1, linecolor="#E5E7EB",
@@ -134,7 +162,6 @@ fig.update_yaxes(
     tickformat=(".0f" if left_ids else "~s"),
     zeroline=False,
 )
-
 if right_ids:
     fig.update_layout(
         yaxis2=dict(
@@ -144,7 +171,6 @@ if right_ids:
             showgrid=False, tickformat="~s", zeroline=False,
         )
     )
-
 st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------
@@ -156,9 +182,7 @@ def compute_pct_changes(full: pd.Series, visible: pd.Series):
     if vis.empty:
         return None, None, None, None
     last = vis.iloc[-1]
-    # MoM / YoY usando fin de mes si corresponde
     mom = (vis.iloc[-1] / vis.iloc[-2] - 1) * 100 if len(vis) >= 2 else None
-    # YoY: último vs 12 atrás (si hay)
     yoy = (vis.iloc[-1] / vis.shift(12).iloc[-1] - 1) * 100 if len(vis) >= 13 else None
     dper = (vis.iloc[-1] / vis.iloc[0] - 1) * 100 if len(vis) >= 2 else None
     return float(last), (float(mom) if mom is not None else None), (float(yoy) if yoy is not None else None), (float(dper) if dper is not None else None)
