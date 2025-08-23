@@ -1,7 +1,8 @@
 # ui.py
 from __future__ import annotations
 import datetime as dt
-from typing import Tuple, Optional, Sequence
+from typing import Tuple, Optional, Sequence, List, Dict
+import re
 import hashlib
 
 import plotly.io as pio
@@ -45,7 +46,7 @@ pio.templates.default = "atlas_dark"
 
 
 # -------------------------------------------------------------------
-# CSS global (branding Atlas + mosaicos + KPIs + picker)
+# CSS global (branding + widgets + KPIs)
 # -------------------------------------------------------------------
 def inject_css() -> None:
     st.markdown(
@@ -82,10 +83,8 @@ def inject_css() -> None:
             border: 1px solid #1F2937 !important;
         }
 
-        /* GRID de mosaicos (home) */
+        /* Tarjetas (home) */
         .tiles { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; align-items: stretch; margin-top: 10px; }
-
-        /* Tarjeta */
         .card {
             width: 320px; max-width: 100%;
             border-radius: 14px; border: 1px solid #1F2937; background: #111827;
@@ -96,8 +95,6 @@ def inject_css() -> None:
         .card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(2,6,23,.20); border-color: rgba(37,99,235,.45); }
         .card h3 { margin: 0; font-size: 1.06rem; line-height: 1.25; }
         .muted { color: #9CA3AF; font-size: 0.93rem; }
-
-        /* Pie de tarjeta */
         .card-footer { display: flex; justify-content: flex-end; margin-top: 6px; }
         a[data-testid="stPageLink"] {
             background: #111827; border: 1px solid #1F2937; padding: 6px 10px; border-radius: 10px;
@@ -105,10 +102,10 @@ def inject_css() -> None:
         }
         a[data-testid="stPageLink"]:hover { border-color: rgba(37,99,235,.55); }
 
-        /* Plotly margin fix */
+        /* Plotly */
         .js-plotly-plot { margin-bottom: 26px; }
 
-        /* --------- KPI por serie (tripleta) --------- */
+        /* KPI tripleta */
         .series-kpi { border:1px solid #1F2937; border-radius:14px; padding:14px 16px; background:linear-gradient(180deg, rgba(17,24,39,.9), rgba(23,32,50,.9)); margin-top:14px; backdrop-filter: blur(6px); }
         .series-kpi .head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
         .series-kpi .dot { width:10px; height:10px; border-radius:50%; box-shadow:0 0 10px rgba(59,130,246,.45); }
@@ -125,20 +122,7 @@ def inject_css() -> None:
         }
         .series-kpi .q:hover::before{ content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%; border:6px solid transparent; border-top-color:#374151; }
 
-        /* ---------- KPI simple ---------- */
-        .kpi-box{ background:#111827; border:1px solid #1F2937; border-radius:12px; padding:14px 16px; margin-top:12px; }
-        .kpi-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-        .kpi-title{ color:#9CA3AF; font-size:.9rem; }
-        .kpi-value{ color:#FFFFFF; font-size:1.6rem; font-weight:600; }
-        .kpi-help{ position:relative; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; border:1px solid #374151; color:#9CA3AF; font-size:.8rem; cursor:help; }
-        .kpi-help:hover::after{
-          content: attr(data-tip); position:absolute; left:50%; transform:translateX(-50%); bottom:130%;
-          background:#0B1222; color:#E5E7EB; border:1px solid #374151; border-radius:8px; padding:8px 10px;
-          width:max-content; max-width:320px; white-space:normal; font-size:.85rem; line-height:1.2rem; box-shadow:0 8px 20px rgba(0,0,0,.25); z-index:9999;
-        }
-        .kpi-help:hover::before{ content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:118%; border:6px solid transparent; border-top-color:#374151; }
-
-        /* ---------- Split legend (custom) ---------- */
+        /* Leyenda split */
         .split-legend { display:flex; flex-wrap:wrap; gap:24px; justify-content:space-between; margin-top:-8px; margin-bottom:10px; }
         .split-legend .col { flex:1 1 380px; }
         .split-legend .col.right { text-align:right; }
@@ -147,19 +131,21 @@ def inject_css() -> None:
         .split-legend .col.right .li { justify-content:flex-end; }
         .split-legend .dot { width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow:0 0 8px rgba(59,130,246,.35); }
 
-        /* ---------- Series Picker (glass / neon) ---------- */
-        .series-picker {border:1px solid #1F2937; border-radius:16px; background:linear-gradient(180deg, rgba(15,23,42,.75), rgba(10,14,26,.75)); padding:14px 14px 12px; backdrop-filter: blur(8px); box-shadow: 0 6px 30px rgba(2,6,23,.25);}
-        .series-picker .head {display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;}
-        .series-picker .title {color:#E5E7EB; font-weight:700;}
-        .series-picker .pill {background:rgba(37,99,235,.15); border:1px solid rgba(37,99,235,.35); padding:4px 8px; border-radius:999px; font-size:.85rem; color:#c7d2fe;}
-        .series-picker .muted {color:#9CA3AF; font-size:.9rem;}
-        .series-picker .chips {display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
-        .series-chip {display:inline-flex; align-items:center; gap:8px; padding:6px 10px; background:rgba(17,24,39,.85);
-                      border:1px solid #1F2937; color:#E5E7EB; border-radius:999px; font-size:.9rem; box-shadow:0 0 10px rgba(59,130,246,.20);}
-        .series-dot {width:8px; height:8px; border-radius:50%; box-shadow:0 0 9px rgba(59,130,246,.55);}
-        .series-actions {display:flex; align-items:center; gap:10px;}
-        .series-clear {background:linear-gradient(90deg, #0D1B52, #2563EB); border:0; color:#fff; padding:6px 10px; border-radius:10px; cursor:pointer;}
-        .series-clear:hover {filter:brightness(1.08); box-shadow:0 0 16px rgba(59,130,246,.35);}
+        /* -------- Series Explorer (nuevo picker) -------- */
+        .expl-wrap { border:1px solid #1F2937; border-radius:16px; background:linear-gradient(180deg, rgba(15,23,42,.75), rgba(10,14,26,.75)); padding:14px; backdrop-filter: blur(8px); box-shadow: 0 6px 30px rgba(2,6,23,.25); }
+        .expl-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+        .expl-title { color:#E5E7EB; font-weight:700; }
+        .expl-sub { color:#9CA3AF; font-size:.92rem; margin-top:4px; }
+        .expl-badge { background:rgba(37,99,235,.15); border:1px solid rgba(37,99,235,.35); padding:4px 8px; border-radius:999px; font-size:.85rem; color:#c7d2fe; }
+        .expl-clear { background:linear-gradient(90deg,#0D1B52,#2563EB); border:0; color:#fff; padding:6px 10px; border-radius:10px; cursor:pointer; }
+        .expl-clear:hover { filter:brightness(1.08); box-shadow:0 0 16px rgba(59,130,246,.35); }
+        .expl-search input { border-radius:12px !important; }
+        .expl-left { border:1px solid #1F2937; border-radius:12px; background:#0f172a; padding:10px; }
+        .expl-cat { display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; cursor:pointer; color:#E5E7EB; }
+        .expl-cat:hover { background:#0b1222; }
+        .expl-cat-active { background:linear-gradient(90deg, rgba(37,99,235,.15), rgba(59,130,246,.10)); border:1px solid rgba(37,99,235,.35); }
+        .expl-right { border:1px solid #1F2937; border-radius:12px; background:#0f172a; padding:10px 12px; }
+        .expl-empty { color:#9CA3AF; padding:12px; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -167,7 +153,7 @@ def inject_css() -> None:
 
 
 # -------------------------------------------------------------------
-# Tarjeta de la home
+# Tarjeta (home)
 # -------------------------------------------------------------------
 def card(title: str, body_md: str, page_path: Optional[str], icon: str = "📊") -> None:
     st.markdown(
@@ -187,7 +173,7 @@ def card(title: str, body_md: str, page_path: Optional[str], icon: str = "📊")
 
 
 # -------------------------------------------------------------------
-# Controles de rango + Gobierno + Frecuencia (última acción gana)
+# Controles de rango + Gobierno + Frecuencia
 # -------------------------------------------------------------------
 _GOV_PERIODS = [
     ("(ninguno)", None, None),
@@ -216,7 +202,6 @@ def range_controls(
     rr_cnt   = f"rr_cnt_{key}"
     gov_cnt  = f"gov_cnt_{key}"
 
-    # estado inicial
     if rr_key  not in st.session_state:  st.session_state[rr_key]  = "(ninguno)"
     if gov_key not in st.session_state:  st.session_state[gov_key] = "(ninguno)"
     if rr_cnt  not in st.session_state:  st.session_state[rr_cnt]  = 0
@@ -226,7 +211,6 @@ def range_controls(
     rr_options  = ["(ninguno)", "1 mes", "3 meses", "6 meses", "1 año", "YTD", "2 años", "Máximo"]
     gov_options = [g[0] for g in _GOV_PERIODS]
 
-    # Callbacks: cada select limpia al otro y marca “yo fui el último”
     def _on_rr_change():
         st.session_state[rr_cnt] += 1
         if st.session_state[rr_key] != "(ninguno)":
@@ -247,7 +231,6 @@ def range_controls(
             on_change=_on_rr_change,
         )
 
-    # si RR ≠ "(ninguno)" y había gobierno, limpiar y marcar RR como último
     if st.session_state[rr_key] != "(ninguno)" and st.session_state[gov_key] != "(ninguno)":
         st.session_state[gov_key] = "(ninguno)"
         st.session_state[rr_cnt] = max(st.session_state[rr_cnt], st.session_state[gov_cnt] + 1)
@@ -272,7 +255,6 @@ def range_controls(
             key=fq_key,
         )
 
-    # normalizo fechas
     dmin = (dmin.date() if hasattr(dmin, "date") else dmin)
     dmax = (dmax.date() if hasattr(dmax, "date") else dmax)
 
@@ -306,7 +288,6 @@ def range_controls(
         gfin_d = _parse_date(gfin) or dmax
         return max(dmin, gini_d), min(dmax, gfin_d)
 
-    # última acción gana
     if show_government and st.session_state[gov_cnt] > st.session_state[rr_cnt] and gov_label != "(ninguno)":
         d_ini, d_fin = _range_from_gov(gov_label)
     else:
@@ -317,7 +298,7 @@ def range_controls(
 
 
 # -------------------------------------------------------------------
-# KPI “tripleta” por serie (MoM/YoY/Δ)
+# KPI tripleta
 # -------------------------------------------------------------------
 def _fmt_pct(x):
     import math
@@ -359,81 +340,109 @@ def kpi_triplet(
 
 
 # -------------------------------------------------------------------
-# Series Picker (multiselect mejorado con header; chips opcionales)
-#   - evita warning de default + session_state simultáneo
+# Series Explorer Picker (buscador + categorías + checkboxes)
 # -------------------------------------------------------------------
-def _hash_color(name: str, palette: Sequence[str]) -> str:
-    h = int(hashlib.md5(name.encode("utf-8")).hexdigest(), 16)
-    return palette[h % len(palette)]
+def _classify(desc: str) -> str:
+    s = desc.lower()
+    if re.search(r"\btasa|\bbadlar|\bplazo\s*fijo|\bcaución|\bpases?\b|\bleliq\b", s):
+        return "Tasas de interés"
+    if re.search(r"\bbase\s+monetaria|\bm[123]\b|\bcirculaci[óo]n|\bmonetaria", s):
+        return "Agregados monetarios"
+    if re.search(r"\breservas|\bbruta|\bneta|\busd|\bd[oó]lar", s):
+        return "Reservas"
+    return "Otros indicadores BCRA"
 
-def series_picker(
+def _stable_key(prefix: str, text: str) -> str:
+    h = hashlib.md5(text.encode("utf-8")).hexdigest()[:10]
+    return f"{prefix}_{h}"
+
+def series_explorer_picker(
     options: Sequence[str],
-    default: Sequence[str] | None = None,
     *,
-    max_selections: int = 3,
+    default: Sequence[str] | None = None,
     key: str = "series",
-    title: str = "Elegí hasta 3 series",
-    subtitle: str | None = None,
-    palette: Sequence[str] = ("#60A5FA", "#F87171", "#34D399", "#F59E0B", "#A78BFA"),
-    show_chips: bool = True,
-) -> list[str]:
-    """
-    Selector futurista con glass panel + (opcional) chips de colores.
-    """
-    placeholder = "Buscar / seleccionar…"
-    state_key = f"picker_{key}"
-
-    # Estado inicial: solo pasamos 'default' al widget si aún no hay state.
-    default_for_widget = None
+    max_selections: int = 3,
+    title: str = "Elegí hasta 3 series para comparar.",
+    subtitle: str = "Podés combinar tasas (%) con agregados o reservas. Si mezclás, el sistema usará doble eje automáticamente.",
+) -> List[str]:
+    state_key = f"expl_sel_{key}"
+    cat_key   = f"expl_cat_{key}"
     if state_key not in st.session_state:
-        default_for_widget = list(default) if default is not None else []
+        st.session_state[state_key] = list(default) if default else []
+    if cat_key not in st.session_state:
+        st.session_state[cat_key] = "Tasas de interés"
 
-    with st.container():
-        st.markdown('<div class="series-picker">', unsafe_allow_html=True)
+    # Build catalog
+    by_cat: Dict[str, List[str]] = {"Tasas de interés": [], "Agregados monetarios": [], "Reservas": [], "Otros indicadores BCRA": []}
+    for o in options:
+        by_cat[_classify(o)].append(o)
+    for k in by_cat:
+        by_cat[k] = sorted(set(by_cat[k]))
 
-        # Encabezado: título + contador + botón limpiar
-        col1, col2 = st.columns([0.8, 0.2])
-        with col1:
-            current = st.session_state.get(state_key, default_for_widget or [])
-            count = len(current)
-            pill = f"<span class='pill'>{count}/{max_selections}</span>"
-            sub = f"<div class='muted'>{subtitle}</div>" if subtitle else ""
-            st.markdown(
-                f"<div class='head'><div class='title'>🎛 {title} {pill}</div>{sub}</div>",
-                unsafe_allow_html=True,
-            )
-        with col2:
-            if st.button("⟳ Limpiar", key=f"clear_{key}", use_container_width=True):
-                st.session_state[state_key] = []
+    sel = set(st.session_state[state_key])
+    active_cat = st.session_state[cat_key]
 
-        sel = st.multiselect(
-            label="",
-            options=options,
-            default=default_for_widget,
-            key=state_key,
-            placeholder=placeholder,
-            label_visibility="collapsed",
-            max_selections=max_selections,
-        )
+    # UI
+    st.markdown('<div class="expl-wrap">', unsafe_allow_html=True)
+    head_left, head_right = st.columns([1, 0.23])
+    with head_left:
+        st.markdown(f"<div class='expl-title'>{title}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='expl-sub'>{subtitle}</div>", unsafe_allow_html=True)
+    with head_right:
+        c = len(sel)
+        st.markdown(f"<div class='expl-badge' style='text-align:center'>{c}/{max_selections}</div>", unsafe_allow_html=True)
+        if st.button("Limpiar", key=f"expl_clear_{key}", use_container_width=True):
+            sel.clear()
+            st.session_state[state_key] = []
 
-        # Chips (opcionales)
-        if show_chips:
-            chips = []
-            for name in sel:
-                color = _hash_color(name, palette)
-                chips.append(
-                    f"<span class='series-chip' style='box-shadow:0 0 8px {color}; border-color:{color};'>"
-                    f"<span class='series-dot' style='background:{color}'></span>{name}</span>"
+    st.markdown('<div class="expl-search">', unsafe_allow_html=True)
+    q = st.text_input("Buscar variable...", value="", key=f"expl_search_{key}", label_visibility="collapsed", placeholder="Buscar variable…")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    col_left, col_right = st.columns([0.36, 0.64])
+
+    with col_left:
+        st.markdown('<div class="expl-left">', unsafe_allow_html=True)
+        for cat in ["Tasas de interés", "Agregados monetarios", "Reservas", "Otros indicadores BCRA"]:
+            active = " expl-cat-active" if cat == active_cat else ""
+            if st.button(f"{cat}", key=_stable_key(f'expl_cat_btn_{key}', cat)):
+                st.session_state[cat_key] = cat
+                active_cat = cat
+            st.markdown(f"<div class='expl-cat{active}'>{cat}</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col_right:
+        st.markdown('<div class="expl-right">', unsafe_allow_html=True)
+        opts = by_cat.get(active_cat, [])
+        if q:
+            ql = q.lower()
+            opts = [o for o in opts if ql in o.lower()]
+        if not opts:
+            st.markdown("<div class='expl-empty'>No hay resultados para el filtro actual.</div>", unsafe_allow_html=True)
+        else:
+            # Checkboxes
+            for o in opts:
+                disabled = (len(sel) >= max_selections) and (o not in sel)
+                chk = st.checkbox(
+                    o,
+                    key=_stable_key(f"expl_chk_{key}", o),
+                    value=(o in sel),
+                    disabled=disabled,
                 )
-            st.markdown("<div class='chips'>" + ("".join(chips) if chips else "") + "</div>", unsafe_allow_html=True)
+                if chk:
+                    sel.add(o)
+                else:
+                    if o in sel:
+                        sel.remove(o)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    return sel
+    st.session_state[state_key] = list(sel)
+    st.markdown('</div>', unsafe_allow_html=True)
+    return list(sel)
 
 
 # -------------------------------------------------------------------
-# KPI simple (compatibilidad con páginas que importan `kpi`)
+# KPI simple (compat con páginas que importan `kpi`)
 # -------------------------------------------------------------------
 def kpi(title: str, value: str, help_text: Optional[str] = None) -> None:
     tip = f' data-tip="{help_text}"' if help_text else ""
