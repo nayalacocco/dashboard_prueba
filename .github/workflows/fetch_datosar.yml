@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
       - run: pip install requests pandas pyarrow fastparquet
-      - run: python scripts/fetch_datosar.py
+      - run: python -m scripts.fetch_datosar
       - name: Commit & push data
         run: |
           git config user.name "bot"
