@@ -1,0 +1,54 @@
+name: Fetch DatosAR
+
+on:
+  schedule:
+    - cron: "25 2 * * *"  # diario 02:25 UTC
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: "IDs de series (coma-separados) para agregar a la allowlist y bajar ahora"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-datosar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          pip install pandas requests pyarrow
+
+      - name: Ensure data dir + allowlist file
+        run: |
+          mkdir -p data
+          touch data/datosar_allowlist.txt
+
+      - name: Run fetch script
+        env:
+          DATOSAR_IDS: ${{ inputs.ids }}
+        run: |
+          python scripts/fetch_datosar.py
+
+      - name: Commit & push data changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update DatosAR parquet/allowlist [CI]"
+            git push
+          else
+            echo "No changes to commit."
+          fi
