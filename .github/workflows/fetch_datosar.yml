@@ -38,6 +38,7 @@ jobs:
       - name: Run fetch script
         env:
           DATOSAR_IDS: ${{ inputs.ids }}
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           python scripts/fetch_datosar.py
 
