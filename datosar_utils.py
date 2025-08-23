@@ -1,137 +1,142 @@
 # datosar_utils.py
 from __future__ import annotations
+import os
+import io
 import json
-import pathlib as p
-from typing import Iterable, Dict, Any, List, Tuple
+import time
+import math
+import pathlib
+from typing import List, Dict, Tuple, Optional
+
 import pandas as pd
 import requests
 
-# Directorios/archivos
-DATA_DIR = p.Path("data")
-RAW_DIR  = DATA_DIR / "datosar_raw"
-PARQUET  = DATA_DIR / "datosar_long.parquet"
-ALLOWLIST = DATA_DIR / "datosar_allowlist.txt"
-
-RAW_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = pathlib.Path("data")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+PARQUET_PATH = DATA_DIR / "datosar_long.parquet"
+ALLOWLIST_PATH = DATA_DIR / "datosar_allowlist.txt"
 
-# API base (Datos Argentina - Series de Tiempo)
-API_BASE = "https://apis.datos.gob.ar/series/api/series/"
+# -----------------------------
+# Presets curados (MEcon/Hacienda)
+# -----------------------------
+# IDs típicos de Hacienda (serie mensual, millones de $ corrientes):
+# NOTA: estos IDs funcionan en el endpoint /series?ids=...
+DATOSAR_PRESETS: Dict[str, List[Dict[str, str]]] = {
+    "Finanzas públicas (Hacienda)": [
+        {
+            "id": "sspm_resultado_primario_mensual",
+            "label": "Resultado primario (Nación) - mensual",
+            "hint": "Ingresos totales - Gasto primario",
+        },
+        {
+            "id": "sspm_resultado_financiero_mensual",
+            "label": "Resultado financiero (Nación) - mensual",
+            "hint": "Primario - Intereses",
+        },
+        {
+            "id": "sspm_ingresos_totales_mensual",
+            "label": "Ingresos totales - mensual",
+            "hint": "Recaudación + otros",
+        },
+        {
+            "id": "sspm_gasto_total_mensual",
+            "label": "Gasto total - mensual",
+            "hint": "Gasto primario + intereses",
+        },
+        {
+            "id": "sspm_gasto_primario_mensual",
+            "label": "Gasto primario - mensual",
+            "hint": "Sin intereses",
+        },
+    ],
+}
 
-# ---------------------------
-# Utilidades de red
-# ---------------------------
-def _http_get(params: Dict[str, Any]) -> Dict[str, Any]:
-    r = requests.get(API_BASE, params=params, timeout=60)
+# -----------------------------
+# I/O allowlist
+# -----------------------------
+def read_allowlist() -> List[str]:
+    if not ALLOWLIST_PATH.exists():
+        return []
+    ids = []
+    for line in ALLOWLIST_PATH.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if s and not s.startswith("#"):
+            ids.append(s)
+    return sorted(set(ids))
+
+def upsert_allowlist(new_ids: List[str]) -> None:
+    current = set(read_allowlist())
+    for x in new_ids:
+        if x: current.add(x.strip())
+    ALLOWLIST_PATH.write_text("\n".join(sorted(current)) + "\n", encoding="utf-8")
+
+# -----------------------------
+# HTTP helpers
+# -----------------------------
+BASE = "https://apis.datos.gob.ar/series/api/series"
+
+def _get(url: str, params: Optional[dict] = None, timeout: int = 30) -> dict:
+    r = requests.get(url, params=params, timeout=timeout)
     r.raise_for_status()
     return r.json()
 
-def _fetch_series_json(series_id: str) -> Dict[str, Any]:
-    # Bajada “por id” (formato JSON)
-    return _http_get({"ids": series_id, "format": "json"})
+def datosar_search(query: str, limit: int = 50) -> List[dict]:
+    """Búsqueda de series por texto."""
+    if not query.strip():
+        return []
+    url = f"{BASE}/search"
+    js = _get(url, params={"q": query, "limit": limit})
+    return js.get("results", []) or []
 
-def search_datosar(query: str, limit: int = 50) -> List[Tuple[str, str, str]]:
-    """
-    Busca series por texto. Devuelve lista de tuplas (id, title/description, dataset).
-    Nota: la API expone búsqueda por 'q'. Algunos catálogos usan 'search'; probamos ambos.
-    """
-    out: List[Tuple[str, str, str]] = []
-    for key in ("q", "search"):
+def fetch_series(ids: List[str]) -> pd.DataFrame:
+    """Baja varias series por id (join por fecha); devuelve LONG (id, fecha, valor, titulo)."""
+    out_frames: List[pd.DataFrame] = []
+    for _id in ids:
+        url = f"{BASE}"
         try:
-            payload = _http_get({key: query, "limit": limit, "format": "json", "metadata": "full"})
+            js = _get(url, params={"ids": _id, "format": "json"})
         except Exception:
             continue
-        # payload típico: {"data": [...], "series": [{id, title, dataset, ...}]}
-        meta = payload.get("series", [])
-        for s in meta:
-            sid   = s.get("id", "")
-            title = s.get("title") or s.get("description") or sid
-            ds    = (s.get("dataset", {}) or {}).get("title", "")
-            if sid:
-                out.append((sid, title, ds))
-        if out:
-            break
-    return out
-
-# ---------------------------
-# Persistencia lista blanca
-# ---------------------------
-def read_allowlist() -> List[str]:
-    if not ALLOWLIST.exists():
-        return []
-    ids = [ln.strip() for ln in ALLOWLIST.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    # únicos y ordenados
-    return sorted(set(ids))
-
-def upsert_allowlist(ids: Iterable[str]) -> List[str]:
-    current = set(read_allowlist())
-    current.update(i.strip() for i in ids if i and i.strip())
-    ordered = sorted(current)
-    ALLOWLIST.write_text("\n".join(ordered), encoding="utf-8")
-    return ordered
-
-# ---------------------------
-# Fetch + load
-# ---------------------------
-def fetch_datosar_to_disk(series_ids: Iterable[str]) -> None:
-    """
-    Baja una lista de IDs de Datos Argentina, guarda raws y consolida todo a long parquet.
-    """
-    frames = []
-    for sid in series_ids:
-        try:
-            payload = _fetch_series_json(sid)
-        except requests.HTTPError as e:
-            print(f"⚠️  No pude bajar {sid}: {e}")
+        data = js.get("data")
+        if not data:
             continue
-        except Exception as e:
-            print(f"⚠️  Error desconocido con {sid}: {e}")
-            continue
+        fechas = [pd.to_datetime(x[0]) for x in data]
+        valores = [x[1] if len(x) > 1 else None for x in data]
+        # metadatos
+        meta = js.get("meta", [{}])
+        title = meta[0].get("title", _id)
+        df = pd.DataFrame({"fecha": fechas, "valor": valores})
+        df["id"] = _id
+        df["titulo"] = title
+        out_frames.append(df)
+        time.sleep(0.2)  # respeto
+    if not out_frames:
+        return pd.DataFrame(columns=["id", "fecha", "valor", "titulo"])
+    long_df = pd.concat(out_frames, ignore_index=True).sort_values(["id", "fecha"])
+    return long_df
 
-        # Guardamos raw
-        (RAW_DIR / f"{sid.replace('/', '_')}.json").write_text(
-            json.dumps(payload, ensure_ascii=False),
-            encoding="utf-8",
-        )
-
-        data = payload.get("data", [])
-        meta = payload.get("series", [])
-        if not data or not meta:
-            continue
-
-        # Columnas: fecha + una columna por serie del paquete
-        cols = ["fecha"] + [s["id"] for s in meta]
-        df = pd.DataFrame(data, columns=cols)
-        df["fecha"] = pd.to_datetime(df["fecha"])
-
-        # Long
-        df = df.melt(id_vars="fecha", var_name="id", value_name="valor")
-
-        # Descripción amigable
-        meta_map = {s["id"]: (s.get("description") or s.get("title") or s["id"]) for s in meta}
-        df["descripcion"] = df["id"].map(meta_map)
-
-        frames.append(df)
-
-    if not frames:
-        raise RuntimeError("No se pudo bajar ninguna serie de Datos Argentina")
-
-    out = pd.concat(frames, ignore_index=True)
-    out.sort_values(["id", "fecha"], inplace=True)
-    out.to_parquet(PARQUET, index=False)
-    print(f"✅ Guardé {len(out):,} registros en {PARQUET}")
+def fetch_datosar_to_disk(ids: List[str]) -> None:
+    df_new = fetch_series(ids)
+    if df_new.empty:
+        print("⚠️ No se descargó ninguna serie.")
+        return
+    if PARQUET_PATH.exists():
+        df_old = pd.read_parquet(PARQUET_PATH)
+        df = pd.concat([df_old, df_new], ignore_index=True)
+        df = df.drop_duplicates(subset=["id", "fecha"]).sort_values(["id", "fecha"])
+    else:
+        df = df_new
+    df.to_parquet(PARQUET_PATH, index=False)
+    print(f"✅ Guardado: {PARQUET_PATH} ({len(df):,} filas)")
 
 def load_datosar_long() -> pd.DataFrame:
-    if not PARQUET.exists():
-        return pd.DataFrame(columns=["fecha", "id", "valor", "descripcion"])
-    df = pd.read_parquet(PARQUET)
+    if not PARQUET_PATH.exists():
+        return pd.DataFrame(columns=["id", "fecha", "valor", "titulo"])
+    df = pd.read_parquet(PARQUET_PATH)
+    # tipificación
     df["fecha"] = pd.to_datetime(df["fecha"])
+    df = df.sort_values(["id", "fecha"])
     return df
 
-# ---------------------------
-# Atajo: buscar y añadir
-# ---------------------------
-def add_and_fetch(ids: Iterable[str]) -> None:
-    """Agrega IDs a la allowlist y los baja/actualiza en el parquet."""
-    ids_final = upsert_allowlist(ids)
-    fetch_datosar_to_disk(ids_final)
+def presets_catalog() -> Dict[str, List[Dict[str, str]]]:
+    return DATOSAR_PRESETS
