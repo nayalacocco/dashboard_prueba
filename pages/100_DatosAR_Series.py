@@ -1,99 +1,122 @@
 # pages/100_DatosAR_Series.py
+from __future__ import annotations
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 
-from ui import inject_css, range_controls, clean_label, looks_percent, kpi_quad, series_picker
-from datosar_utils import load_datosar_long, search_datosar, add_and_fetch, read_allowlist
+from ui import inject_css, range_controls, series_picker, clean_label, looks_percent, kpi
+from datosar_utils import (
+    load_datosar_long,
+    datosar_search,
+    presets_catalog,
+    upsert_allowlist,
+    read_allowlist,
+    fetch_datosar_to_disk,
+)
 
-st.set_page_config(page_title="Series – Datos Argentina", layout="wide")
+st.set_page_config(page_title="Series de Datos Argentina", layout="wide")
 inject_css()
 st.title("📊 Series de Datos Argentina")
 
-st.caption("Buscá, agregá al catálogo local y graficá. El fetch nocturno leerá `data/datosar_allowlist.txt`.")
+st.caption("Buscá, agregá al catálogo local y graficá. El fetch nocturno leerá "
+           "`data/datosar_allowlist.txt`.")
 
-# -------------------------
-# Panel de búsqueda / alta
-# -------------------------
-with st.expander("🔎 Buscar y agregar series al catálogo local", expanded=False):
-    qcol, lcol = st.columns([2,1])
-    with qcol:
-        q = st.text_input("Buscar por palabra clave (ej.: resultado primario, gasto total, ingresos, resultado financiero)", value="")
-    with lcol:
-        limit = st.number_input("Límite de resultados", min_value=5, max_value=200, value=50, step=5)
-    if st.button("Buscar"):
-        if not q.strip():
-            st.warning("Escribí un término de búsqueda.")
+# =========================
+# 1) Colecciones rápidas (presets)
+# =========================
+presets = presets_catalog()
+with st.expander("⚡ Colecciones rápidas (MEcon/Hacienda)", expanded=True):
+    cols = st.columns(2)
+    chosen: list[str] = []
+    for i, (group, items) in enumerate(presets.items()):
+        with cols[i % 2]:
+            st.markdown(f"**{group}**")
+            for it in items:
+                ck = st.checkbox(f"{it['label']}", help=it.get("hint", ""), key=f"preset_{it['id']}")
+                if ck:
+                    chosen.append(it["id"])
+    c1, c2 = st.columns([1, 4])
+    with c1:
+        if st.button("➕ Agregar seleccionadas", use_container_width=True, disabled=(len(chosen) == 0)):
+            upsert_allowlist(chosen)
+            # intento bajar de inmediato
+            fetch_datosar_to_disk(chosen)
+            st.success(f"Agregadas {len(chosen)} al catálogo y descargadas (si existían).")
+
+# =========================
+# 2) Buscar en la API
+# =========================
+with st.expander("🔎 Buscar y agregar series al catálogo local", expanded=True):
+    cA, cB = st.columns([3, 1])
+    with cA:
+        q = st.text_input("Buscar por palabra clave (ej.: resultado primario, gasto total, ingresos, resultado financiero)",
+                          value="ingresos")
+    with cB:
+        lim = st.number_input("Límite de resultados", min_value=10, max_value=200, value=50, step=10)
+    if st.button("Buscar", type="primary"):
+        try:
+            res = datosar_search(q, int(lim))
+        except Exception as e:
+            res = []
+            st.error("Error consultando el endpoint de búsqueda.")
+        if not res:
+            st.info("Sin resultados (o el endpoint no devolvió nada). Probá otro término.")
         else:
-            results = search_datosar(q.strip(), int(limit))
-            if not results:
-                st.info("Sin resultados (o el endpoint de búsqueda de la API no devolvió nada). Probá otro término.")
-            else:
-                st.success(f"{len(results)} resultados")
-                # Selección
-                opts = [f"[{sid}] {title} — {src}" for sid, title, src in results]
-                pick = st.multiselect("Elegí series para agregar", options=opts)
-                if pick and st.button("➕ Agregar a catálogo y descargar"):
-                    ids = [p.split("]")[0][1:] for p in pick]
-                    with st.spinner("Agregando y descargando…"):
-                        add_and_fetch(ids)
-                    st.success("Listo. Actualizá la página para ver los nuevos datos si no aparecen automáticamente.")
+            st.write(f"Resultados: {len(res)}")
+            add_ids = []
+            for r in res:
+                _id = r.get("id") or r.get("series_id") or ""
+                title = r.get("title") or r.get("dataset_title") or _id
+                org = r.get("publisher", {}).get("name", "")
+                st.markdown(f"- **{title}**  \n  `id: {_id}`  · _{org}_")
+                if st.button(f"Agregar {_id}", key=f"add_{_id}"):
+                    add_ids.append(_id)
+            if add_ids:
+                upsert_allowlist(add_ids)
+                fetch_datosar_to_disk(add_ids)
+                st.success(f"Agregadas {len(add_ids)} al catálogo y descargadas.")
 
-st.divider()
-
-# -------------------------
-# Carga local
-# -------------------------
+# =========================
+# 3) Catálogo local → seleccionar y graficar
+# =========================
 df = load_datosar_long()
 if df.empty:
     st.warning("Todavía no hay datos locales de Datos Argentina. Buscá y agregá series arriba o corré el fetch `scripts/fetch_datosar.py`.")
     st.stop()
 
-# Labels
-id2desc = (
-    df.dropna(subset=["descripcion"])
-      .drop_duplicates(subset=["id"])
-      .set_index("id")["descripcion"]
-      .to_dict()
-)
-all_ids = sorted(df["id"].unique().tolist())
-options = [f"[{sid}] {clean_label(id2desc.get(sid, sid))}" for sid in all_ids]
-lab2id  = {opt: opt.split("]")[0][1:] for opt in options}
+# Opciones locales
+local_ids = sorted(df["id"].unique().tolist())
+# labels amigables
+options_lbl = []
+for _id in local_ids:
+    titulo = df.loc[df["id"] == _id, "titulo"].dropna().iloc[0] if not df.loc[df["id"] == _id, "titulo"].dropna().empty else _id
+    options_lbl.append(f"{clean_label(titulo)} · [{_id}]")
 
-# Defaults: si hay allowlist, tomamos hasta 3 primeros
-allow = read_allowlist()
-defaults = [f"[{sid}] {clean_label(id2desc.get(sid, sid))}" for sid in allow[:3] if sid in id2desc]
+lbl2id = {lbl: _id for lbl, _id in zip(options_lbl, local_ids)}
 
-sel_labels = series_picker(
-    options,
-    default=(defaults if defaults else options[:3]),
+sel_lbls = series_picker(
+    options_lbl,
+    default=options_lbl[:3] if len(options_lbl) >= 3 else options_lbl,
     max_selections=3,
-    key="datosar",
+    key="datosar_pick",
     title="Elegí hasta 3 series",
-    subtitle="Podés mezclar indicadores de organismos distintos. Si hay % y niveles, activamos doble eje.",
+    subtitle="Podés combinar razones y niveles; si mezclás porcentaje con niveles usaremos doble eje.",
     show_chips=False,
 )
-if not sel_labels:
-    st.info("Elegí al menos una serie para comenzar.")
+
+sel_ids = [lbl2id[lbl] for lbl in sel_lbls] if sel_lbls else []
+if not sel_ids:
+    st.info("Elegí al menos una serie del catálogo local.")
     st.stop()
 
-sel_ids = [lab2id[x] for x in sel_labels]
-
-# -------------------------
-# Ancho para gráfico
-# -------------------------
+# Pivot de selección
 wide_full = (
     df[df["id"].isin(sel_ids)]
-      .pivot(index="fecha", columns="id", values="valor")
-      .sort_index()
+    .pivot(index="fecha", columns="id", values="valor")
+    .sort_index()
 )
-if wide_full.empty:
-    st.warning("No hay datos para esas series.")
-    st.stop()
 
-# -------------------------
 # Rango + frecuencia
-# -------------------------
 dmin, dmax = wide_full.index.min(), wide_full.index.max()
 d_ini, d_fin, freq_label = range_controls(dmin, dmax, key="datosar")
 freq = "D" if freq_label.startswith("Diaria") else "M"
@@ -106,101 +129,78 @@ if wide_vis.empty:
     st.warning("El rango/frecuencia seleccionados dejan las series sin datos.")
     st.stop()
 
-# -------------------------
-# Ejes
-# -------------------------
-left_ids  = [sid for sid in sel_ids if looks_percent(id2desc.get(sid, sid))]
-right_ids = [sid for sid in sel_ids if sid not in left_ids]
+# Heurística ejes
+left_ids  = [i for i in sel_ids if looks_percent(df.loc[df["id"] == i, "titulo"].iloc[0] if not df.loc[df["id"] == i, "titulo"].empty else i)]
+right_ids = [i for i in sel_ids if i not in left_ids]
 if not left_ids:
     left_ids, right_ids = sel_ids[:], []
 
-# -------------------------
 # Figura
-# -------------------------
 fig = go.Figure()
 palette = ["#60A5FA", "#F87171", "#34D399"]
 
-for i, sid in enumerate(left_ids):
-    s = wide_vis[sid].dropna()
-    if s.empty: 
-        continue
-    fig.add_trace(
-        go.Scatter(
-            x=s.index, y=s.values, mode="lines",
-            name=clean_label(id2desc.get(sid, sid)),
-            line=dict(width=2, color=palette[i % len(palette)]),
-            yaxis="y",
-            hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
-        )
-    )
+def label_for(_id: str) -> str:
+    t = df.loc[df["id"] == _id, "titulo"].dropna()
+    return clean_label(t.iloc[0]) if not t.empty else _id
 
-for j, sid in enumerate(right_ids):
-    s = wide_vis[sid].dropna()
-    if s.empty: 
-        continue
-    fig.add_trace(
-        go.Scatter(
-            x=s.index, y=s.values, mode="lines",
-            name=clean_label(id2desc.get(sid, sid)),
-            line=dict(width=2, color=palette[(len(left_ids)+j) % len(palette)]),
-            yaxis="y2",
-            hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
-        )
-    )
+legend_left, legend_right = [], []
 
-fig.update_layout(
-    template="atlas_dark",
-    height=620,
-    margin=dict(t=30, b=80, l=70, r=90),
-    showlegend=True,
-)
-fig.update_xaxes(title_text="Fecha", showline=True, linewidth=1, linecolor="#E5E7EB")
-fig.update_yaxes(
-    title_text="Eje izq",
-    showline=True, linewidth=1, linecolor="#E5E7EB",
-    showgrid=True, gridcolor="#1F2937",
-    tickformat=(".0f" if left_ids else "~s"),
-    zeroline=False,
-)
+for i, _id in enumerate(left_ids):
+    s = wide_vis[_id].dropna()
+    if s.empty: continue
+    color = palette[i % len(palette)]
+    legend_left.append((label_for(_id), color))
+    fig.add_trace(go.Scatter(x=s.index, y=s.values, mode="lines",
+                             name=_id, line=dict(width=2, color=color), yaxis="y",
+                             hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>"))
+
+for j, _id in enumerate(right_ids):
+    s = wide_vis[_id].dropna()
+    if s.empty: continue
+    color = palette[(len(left_ids) + j) % len(palette)]
+    legend_right.append((label_for(_id), color))
+    fig.add_trace(go.Scatter(x=s.index, y=s.values, mode="lines",
+                             name=_id, line=dict(width=2, color=color), yaxis="y2",
+                             hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>"))
+
+fig.update_layout(template="atlas_dark", height=620,
+                  margin=dict(t=30, b=120, l=70, r=90),
+                  showlegend=False, uirevision=None)
+fig.update_xaxes(title_text="Fecha",
+                 showline=True, linewidth=1, linecolor="#E5E7EB", ticks="outside")
+
+fig.update_yaxes(title_text="Eje izq", showline=True, linewidth=1, linecolor="#E5E7EB",
+                 showgrid=True, gridcolor="#1F2937", autorange=True, tickmode="auto",
+                 zeroline=False)
+
 if right_ids:
-    fig.update_layout(
-        yaxis2=dict(
-            title="Eje der",
-            overlaying="y", side="right",
-            showline=True, linewidth=1, linecolor="#E5E7EB",
-            showgrid=False, tickformat="~s", zeroline=False,
-        )
-    )
+    fig.update_layout(yaxis2=dict(title="Eje der", overlaying="y", side="right",
+                                  showline=True, linewidth=1, linecolor="#E5E7EB",
+                                  showgrid=False, autorange=True, tickmode="auto",
+                                  zeroline=False))
+
+# Log toggles
+lc1, lc2, _ = st.columns([1,1,2])
+with lc1:
+    log_left = st.toggle("Escala log (eje izq)", value=False, key="log_left_datosar")
+with lc2:
+    log_right = st.toggle("Escala log (eje der)", value=False, key="log_right_datosar", disabled=(len(right_ids)==0))
+if log_left:
+    fig.update_yaxes(type="log")
+if log_right and right_ids:
+    fig.update_layout(yaxis2=dict(type="log"))
+
 st.plotly_chart(fig, use_container_width=True)
 
-# -------------------------
-# KPIs (cuádruple con “último dato”)
-# -------------------------
-def compute_pct_changes(full: pd.Series, visible: pd.Series):
-    full = full.dropna()
-    vis  = visible.dropna()
-    if vis.empty:
-        return None, None, None, None
-    last = vis.iloc[-1]
-    mom = (vis.iloc[-1] / vis.iloc[-2] - 1) * 100 if len(vis) >= 2 else None
-    yoy = (vis.iloc[-1] / vis.shift(12).iloc[-1] - 1) * 100 if len(vis) >= 13 else None
-    dper = (vis.iloc[-1] / vis.iloc[0] - 1) * 100 if len(vis) >= 2 else None
-    return float(last), (float(mom) if mom is not None else None), (float(yoy) if yoy is not None else None), (float(dper) if dper is not None else None)
-
-palette_cycle = ["#60A5FA", "#F87171", "#34D399"]
-for idx, sid in enumerate(sel_ids):
-    name = clean_label(id2desc.get(sid, sid))
-    full_s = df[df["id"] == sid].set_index("fecha")["valor"].sort_index().astype(float)
-    vis_s  = wide_vis[sid].dropna().astype(float)
-    last, mom, yoy, dper = compute_pct_changes(full_s, vis_s)
-    is_pct = looks_percent(id2desc.get(sid, sid))
-    color  = palette_cycle[idx % len(palette_cycle)]
-    kpi_quad(
-        title=name, color=color,
-        last_value=last, is_percent=is_pct,
-        mom=mom, yoy=yoy, d_per=dper,
-        tip_last="Último dato visible (rango/frecuencia elegidos).",
-        tip_mom="Variación del último dato vs periodo previo del rango.",
-        tip_yoy="Variación vs mismo periodo 12 meses atrás.",
-        tip_per="Variación del primer al último dato en el rango visible.",
-    )
+# Leyenda split
+rows_html = []
+if legend_left:
+    left_items = "".join(f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>'
+                         for lbl, c in legend_left)
+    rows_html.append(f'<div class="col"><div class="hdr">Eje izquierdo</div>{left_items}</div>')
+if legend_right:
+    right_items = "".join(f'<div class="li"><span class="dot" style="background:{c}"></span>{lbl}</div>'
+                          for lbl, c in legend_right)
+    rows_html.append(f'<div class="col right"><div class="hdr">Eje derecho</div>{right_items}</div>')
+if rows_html:
+    st.markdown("<div class='split-legend'>" + ("".join(rows_html)) + "</div>", unsafe_allow_html=True)
