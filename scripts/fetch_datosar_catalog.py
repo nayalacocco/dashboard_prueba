@@ -1,203 +1,156 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
-Descarga catálogo de la API Series de DatosAR (sin necesidad de conocer IDs en la UI).
-- Construye data/datosar/catalog_index.json
-- (Opcional) Prefetch de series "semilla" listadas en data/datosar/seed_ids.txt
+Construye el catálogo local de series de Datos Argentina.
+1) Intenta usar /series/api/series/available (si está disponible).
+2) Si no, recurre a CKAN /api/3/action/package_search para datasets de INDEC / MEcon / Hacienda
+   y extrae los IDs de series desde los metadatos de distributions (cuando están).
+Guarda:
+- data/datosar_catalog.parquet   (tabla con metadatos)
+- data/datosar_index.json        (dict {id: etiqueta limpia})
 """
 
-import os, json, time, sys, math
-from pathlib import Path
-from typing import Dict, Any, List, Optional
+import os, sys, json, time, re
+from typing import List, Dict, Any
 import requests
+import pandas as pd
 
-BASE = "https://apis.datos.gob.ar/series/api/series"
-OUT_DIR = Path("data/datosar")
-OUT_DIR.mkdir(parents=True, exist_ok=True)
-CATALOG_FILE = OUT_DIR / "catalog_index.json"
-SEED_FILE = OUT_DIR / "seed_ids.txt"
-SERIES_DIR = OUT_DIR / "series"
-SERIES_DIR.mkdir(parents=True, exist_ok=True)
+BASE_SERIES_AVAILABLE = "https://apis.datos.gob.ar/series/api/series/available"
+BASE_CKAN_SEARCH = "https://datos.gob.ar/api/3/action/package_search"
 
-# ------- Cómo filtramos al principio (ajustable sin tocar código) -------
-DEFAULT_TERMS = [
-    # Hacienda / MEcon / INDEC
-    "resultado primario",
-    "resultado financiero",
-    "gasto total",
-    "ingresos",
-    "ingreso total",
-    "inflación",
-    "ipc",
+OUT_DIR = "data"
+CAT_PARQUET = os.path.join(OUT_DIR, "datosar_catalog.parquet")
+IDX_JSON = os.path.join(OUT_DIR, "datosar_index.json")
+
+os.makedirs(OUT_DIR, exist_ok=True)
+
+SEED_ORGS = [
+    # org id en CKAN (con espacios es mejor usar fq=organization:*texto*)
+    "indec",
+    "ministerio-de-economia",
+    "secretaria-de-hacienda",
+    "tesoro",
+    "ministerio-de-economia-de-la-nacion",
 ]
 
-# Intento de filtrar por organismo/tema desde metadata (si el endpoint lo expone):
-ORG_HINTS = [
-    "Ministerio de Economía", "Secretaría de Hacienda", "INDEC",
-    "Tesoro", "Ministerio de Hacienda"
-]
+def _clean_label(s: str) -> str:
+    s = s or ""
+    s = re.sub(r"\s*\(en\s*%.*?\)", "", s, flags=re.I)
+    s = re.sub(r"\s*\(en\s*millones.*?\)", "", s, flags=re.I)
+    s = re.sub(r"\s*\(expresado.*?\)", "", s, flags=re.I)
+    s = re.sub(r"\s*–\s*", " - ", s)
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    return s
 
-# ----------------------- Helpers HTTP -----------------------
-def _get(url: str, params: Dict[str, Any], retries: int = 3, timeout=30) -> Dict[str, Any]:
-    for i in range(retries):
-        r = requests.get(url, params=params, timeout=timeout)
-        if r.status_code == 200:
-            try:
-                return r.json()
-            except Exception:
-                pass
-        time.sleep(1.2 * (i + 1))
-    r.raise_for_status()
-    return {}
-
-# ----------------------- Catalog crawling -----------------------
-def search_series(term: str, limit=1000, offset=0) -> Dict[str, Any]:
+def try_available_endpoint(limit=5000) -> pd.DataFrame:
     """
-    Usa la búsqueda del catálogo de Series. Según la instalación, la query suele ser 'q'.
-    Dejamos metadata=full para poder filtrar y mostrar sin tocar el ID.
+    Intenta listar TODAS las series desde /series/available con paginado.
+    Devuelve DF con columnas: id, title, dataset, source, frequency (si existen).
     """
-    params = {
-        "q": term,             # <- si tu instalación usa otro nombre (search=), cámbialo acá
-        "limit": limit,
-        "offset": offset,
-        "metadata": "full",
-    }
-    return _get(BASE, params)
-
-def normalize_hit(hit: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """
-    A partir de un 'hit' de metadata full, creamos un registro compacto para el índice.
-    Campos esperados: 'id', 'title', 'dataset', 'units', 'frequency', 'dataset_source', etc.
-    Como cada despliegue puede variar, hacemos 'get' defensivo.
-    """
-    sid   = hit.get("id") or hit.get("serie_id") or hit.get("series_id")
-    title = hit.get("title") or hit.get("description") or hit.get("dataset_title")
-    freq  = hit.get("frequency") or hit.get("freq") or hit.get("periodicity")
-    unit  = hit.get("units") or hit.get("unit") or hit.get("unit_label")
-    org   = hit.get("dataset_source") or hit.get("publisher") or hit.get("dataset_publisher")
-    topic = hit.get("dataset_theme") or hit.get("theme") or hit.get("topic")
-
-    if not sid or not title:
-        return None
-    return {
-        "id": sid,
-        "title": title.strip(),
-        "frequency": (freq or "").strip(),
-        "unit": (unit or "").strip(),
-        "org": (org or "").strip(),
-        "topic": (topic or "").strip(),
-    }
-
-def build_catalog(terms: List[str]) -> List[Dict[str, Any]]:
-    seen = set()
     rows: List[Dict[str, Any]] = []
-    for term in terms:
-        offset = 0
-        while True:
-            payload = search_series(term, limit=1000, offset=offset)
-            hits = payload.get("data") or payload.get("results") or payload.get("series") or []
-            if not hits:
-                break
-            for h in hits:
-                rec = normalize_hit(h)
-                if not rec:
-                    continue
-                # Filtrado suave por organismo
-                if ORG_HINTS and rec["org"]:
-                    ok = any(hint.lower() in rec["org"].lower() for hint in ORG_HINTS)
-                    if not ok:
-                        # si no matchea org, igual dejamos pasar 10% para no perder gems
-                        if (hash(rec["id"]) % 10) != 0:
-                            continue
-                if rec["id"] in seen:
-                    continue
-                seen.add(rec["id"])
-                rows.append(rec)
-            # paginado defensivo
-            n = len(hits)
-            if n < 1000:
-                break
-            offset += n
-    # orden estable por org -> tema -> título
-    rows.sort(key=lambda r: (r["org"].lower(), r["topic"].lower(), r["title"].lower()))
-    return rows
-
-# ----------------------- Series prefetch (opcional) -----------------------
-def fetch_series_by_id(series_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Trae una serie por ID y la guarda en CSV en data/datosar/series/<ID>.csv
-    Según despliegue, el endpoint para datos suele ser el mismo con ?ids=<ID>.
-    """
-    params = {
-        "ids": series_id,
-        "format": "json"  # dejamos json, lo convertimos a CSV simple
-    }
-    payload = _get(BASE, params)
-    data = payload.get("data") or payload.get("values") or payload.get("series")
-    meta = payload.get("meta") or payload.get("metadata") or {}
-
-    if not data:
-        return None
-
-    # normalizamos a una lista de [fecha, valor]
-    # muchos despliegues devuelven: {"data":[["2020-01-01", 123.4], ...]}
-    out_csv = SERIES_DIR / f"{series_id}.csv"
-    with out_csv.open("w", encoding="utf-8") as f:
-        f.write("fecha,valor\n")
-        for row in data:
-            # si vienen dicts, adaptamos
-            if isinstance(row, dict):
-                fecha = row.get("index") or row.get("fecha") or row.get("date")
-                valor = row.get("value") or row.get("valor") or row.get("y")
-            else:
-                # asumimos [fecha, valor]
-                try:
-                    fecha, valor = row[0], row[1]
-                except Exception:
-                    continue
-            if fecha is None or valor is None:
+    offset = 0
+    step = 1000
+    while True:
+        params = {"format": "json", "limit": step, "offset": offset}
+        r = requests.get(BASE_SERIES_AVAILABLE, params=params, timeout=60)
+        if r.status_code >= 400:
+            # No existe o está deshabilitado => devolvemos vacío
+            return pd.DataFrame()
+        data = r.json()
+        # el payload habitual trae "data" o lista directa
+        items = data.get("data") or data.get("results") or data
+        if not isinstance(items, list) or len(items) == 0:
+            break
+        for it in items:
+            rid = it.get("id") or it.get("series_id")
+            if not rid:
                 continue
-            f.write(f"{fecha},{valor}\n")
+            rows.append({
+                "id": rid,
+                "title": it.get("title") or it.get("description") or rid,
+                "dataset": it.get("dataset") or it.get("dataset_title") or "",
+                "source": it.get("source") or it.get("publisher") or "",
+                "frequency": it.get("frequency") or it.get("freq") or "",
+            })
+        offset += step
+        if len(items) < step or len(rows) >= limit:
+            break
+        time.sleep(0.2)
+    return pd.DataFrame(rows).drop_duplicates("id")
 
-    # también guardamos un pequeño sidecar con título para debug/inspección
-    title = None
-    if isinstance(meta, list) and meta:
-        title = meta[0].get("title")
-    elif isinstance(meta, dict):
-        title = meta.get("title")
-    info = {"id": series_id, "title": title}
-    with (SERIES_DIR / f"{series_id}.json").open("w", encoding="utf-8") as f:
-        json.dump(info, f, ensure_ascii=False, indent=2)
-    return info
+def ckan_search_all() -> pd.DataFrame:
+    """
+    Fallback: consulta CKAN y arma candidatos.
+    Extrae IDs de series desde las distributions cuando la URL trae 'series/api/series?ids=...'
+    """
+    rows: List[Dict[str, Any]] = []
+    start = 0
+    step = 100
+    # Buscamos datasets de todas las orgs semilla
+    # Nota: usamos q vacío y fq por org para barrer lo máximo posible.
+    for org in SEED_ORGS:
+        start = 0
+        while True:
+            params = {
+                "q": "",
+                "rows": step,
+                "start": start,
+                "fq": f'organization:{org}'
+            }
+            r = requests.get(BASE_CKAN_SEARCH, params=params, timeout=60)
+            if r.status_code >= 400:
+                break
+            payload = r.json()
+            result = payload.get("result", {})
+            datasets = result.get("results", [])
+            if not datasets:
+                break
+            for ds in datasets:
+                ds_title = ds.get("title") or ""
+                org_title = (ds.get("organization") or {}).get("title") or ""
+                for res in ds.get("resources", []):
+                    url = res.get("url") or ""
+                    # Heurística: si en la distribution aparece la query de series con ids=
+                    m = re.search(r"series/api/series\?ids=([^&]+)", url)
+                    if m:
+                        sid = m.group(1)
+                        rows.append({
+                            "id": sid,
+                            "title": res.get("name") or ds_title or sid,
+                            "dataset": ds_title,
+                            "source": org_title,
+                            "frequency": res.get("frequency") or "",
+                        })
+            start += step
+            if start >= (result.get("count") or 0):
+                break
+            time.sleep(0.2)
+    return pd.DataFrame(rows).drop_duplicates("id")
 
 def main():
-    terms = DEFAULT_TERMS[:]
-    if len(sys.argv) > 1:
-        # permitir override: python fetch_datosar_catalog.py "resultado primario" "gasto"
-        terms = sys.argv[1:]
+    print("[DatosAR] Construyendo catálogo…")
+    df = try_available_endpoint()
+    if df.empty:
+        print(" - Endpoint /series/available no respondió; usando CKAN fallback…")
+        df = ckan_search_all()
+    if df.empty:
+        raise RuntimeError("No pude construir el catálogo de DatosAR (sin filas).")
 
-    print(f"[DatosAR] Construyendo catálogo para términos: {terms}")
-    rows = build_catalog(terms)
-    with CATALOG_FILE.open("w", encoding="utf-8") as f:
-        json.dump({"built_at": time.time(), "rows": rows}, f, ensure_ascii=False, indent=2)
-    print(f"[DatosAR] Catálogo listo: {CATALOG_FILE} ({len(rows)} series)")
+    # Limpieza y etiqueta amigable
+    df["label"] = df.apply(
+        lambda r: _clean_label(f'{r.get("title") or ""}').strip() or r["id"],
+        axis=1,
+    )
 
-    # Prefetch opcional
-    if SEED_FILE.exists():
-        seeds = [s.strip() for s in SEED_FILE.read_text(encoding="utf-8").splitlines() if s.strip() and not s.strip().startswith("#")]
-        if seeds:
-            print(f"[DatosAR] Prefetch de {len(seeds)} series (semillas)…")
-            for sid in seeds:
-                try:
-                    info = fetch_series_by_id(sid)
-                    if info:
-                        print(f"  - {sid} ✓ {info.get('title') or ''}")
-                    else:
-                        print(f"  - {sid} ✗ no encontrada")
-                except Exception as e:
-                    print(f"  - {sid} ✗ error: {e}")
-    print("[DatosAR] Done.")
+    # Guardados
+    df = df[["id", "label", "title", "dataset", "source", "frequency"]].drop_duplicates("id")
+    df.to_parquet(CAT_PARQUET, index=False)
+    idx = {row["id"]: row["label"] for _, row in df.iterrows()}
+    with open(IDX_JSON, "w", encoding="utf-8") as f:
+        json.dump(idx, f, ensure_ascii=False, indent=2)
+
+    print(f"✓ Catálogo: {len(df):,} series → {CAT_PARQUET}")
+    print(f"✓ Index    : {len(idx):,} ids    → {IDX_JSON}")
 
 if __name__ == "__main__":
     main()
