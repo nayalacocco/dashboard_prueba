@@ -27,9 +27,16 @@ jobs:
         run: |
           mkdir -p data/raw
 
-      - name: Check metadata CSV
+      - name: Check metadata CSVs
         run: |
-          test -f data/raw/series-tiempo-metadatos.csv || (echo "Falta data/raw/series-tiempo-metadatos.csv" && exit 1)
+          shopt -s nullglob
+          files=(data/raw/series-tiempo-metadatos-*.csv)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No encontré archivos data/raw/series-tiempo-metadatos-*.csv"
+            exit 1
+          else
+            echo "Encontrados ${#files[@]} metadatos CSV(s)."
+          fi
 
       - name: Build catalog
         run: python scripts/fetch_datosar_catalog.py
