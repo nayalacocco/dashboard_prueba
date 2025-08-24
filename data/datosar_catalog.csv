@@ -1,0 +1,6 @@
+group,name,source,id_or_url,units,notes
+Fiscal – MECON,Resultado primario (Adm. Nac., devengado, mensual),series-tiempo-ar,sspm_result_prim_mensual,AR$ MM,"ID de Series Tiempo AR (catálogo MECON)."
+Fiscal – MECON,Resultado financiero (Adm. Nac., devengado, mensual),series-tiempo-ar,sspm_result_fin_mensual,AR$ MM,"ID de Series Tiempo AR (catálogo MECON)."
+Fiscal – MECON,Ingresos totales (Adm. Nac., devengado, mensual),series-tiempo-ar,sspm_ingresos_tot_mensual,AR$ MM,""
+Fiscal – MECON,Gasto primario (Adm. Nac., devengado, mensual),series-tiempo-ar,sspm_gasto_prim_mensual,AR$ MM,""
+Inflación – INDEC,IPC Nivel general (GBA, base 2016=100),series-tiempo-ar,ipc_2016_nivel_general,índice,""
