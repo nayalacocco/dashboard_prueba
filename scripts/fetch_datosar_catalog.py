@@ -78,53 +78,41 @@ def try_available_endpoint(limit=5000) -> pd.DataFrame:
         time.sleep(0.2)
     return pd.DataFrame(rows).drop_duplicates("id")
 
-def ckan_search_all() -> pd.DataFrame:
+def ckan_search_all(limit=1000) -> pd.DataFrame:
     """
-    Fallback: consulta CKAN y arma candidatos.
-    Extrae IDs de series desde las distributions cuando la URL trae 'series/api/series?ids=...'
+    Barrido general en CKAN: busca todos los datasets y filtra resources que apunten a /series/api/series.
     """
-    rows: List[Dict[str, Any]] = []
+    rows = []
     start = 0
     step = 100
-    # Buscamos datasets de todas las orgs semilla
-    # Nota: usamos q vacío y fq por org para barrer lo máximo posible.
-    for org in SEED_ORGS:
-        start = 0
-        while True:
-            params = {
-                "q": "",
-                "rows": step,
-                "start": start,
-                "fq": f'organization:{org}'
-            }
-            r = requests.get(BASE_CKAN_SEARCH, params=params, timeout=60)
-            if r.status_code >= 400:
-                break
-            payload = r.json()
-            result = payload.get("result", {})
-            datasets = result.get("results", [])
-            if not datasets:
-                break
-            for ds in datasets:
-                ds_title = ds.get("title") or ""
-                org_title = (ds.get("organization") or {}).get("title") or ""
-                for res in ds.get("resources", []):
-                    url = res.get("url") or ""
-                    # Heurística: si en la distribution aparece la query de series con ids=
-                    m = re.search(r"series/api/series\?ids=([^&]+)", url)
-                    if m:
-                        sid = m.group(1)
-                        rows.append({
-                            "id": sid,
-                            "title": res.get("name") or ds_title or sid,
-                            "dataset": ds_title,
-                            "source": org_title,
-                            "frequency": res.get("frequency") or "",
-                        })
-            start += step
-            if start >= (result.get("count") or 0):
-                break
-            time.sleep(0.2)
+    while True:
+        params = {"q": "", "rows": step, "start": start}
+        r = requests.get(BASE_CKAN_SEARCH, params=params, timeout=60)
+        if r.status_code >= 400:
+            break
+        payload = r.json()
+        result = payload.get("result", {})
+        datasets = result.get("results", [])
+        if not datasets:
+            break
+        for ds in datasets:
+            ds_title = ds.get("title") or ""
+            org_title = (ds.get("organization") or {}).get("title") or ""
+            for res in ds.get("resources", []):
+                url = res.get("url") or ""
+                if "series/api/series?ids=" in url:
+                    sid = url.split("ids=")[1].split("&")[0]
+                    rows.append({
+                        "id": sid,
+                        "title": res.get("name") or ds_title or sid,
+                        "dataset": ds_title,
+                        "source": org_title,
+                        "frequency": res.get("frequency") or "",
+                    })
+        start += step
+        if start >= (result.get("count") or 0) or len(rows) >= limit:
+            break
+        time.sleep(0.2)
     return pd.DataFrame(rows).drop_duplicates("id")
 
 def main():
