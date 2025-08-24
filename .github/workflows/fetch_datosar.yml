@@ -1,28 +1,24 @@
-# .github/workflows/fetch.yml
-name: Nightly fetch
+name: Fetch DatosAR
 
 on:
   schedule:
-    - cron: "11 2 * * *"  # 02:11 UTC diario
+    - cron: "15 3 * * *" # todos los días 03:15 UTC
   workflow_dispatch:
 
 jobs:
-  datosar:
+  fetch-datosar:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install pandas pyarrow requests
-      - name: Build catalog
-        run: python scripts/fetch_datosar_catalog.py
-      - name: Fetch DatosAR
-        run: python scripts/fetch_datosar.py
+      - run: pip install pandas requests pyarrow fastparquet
+      - run: python scripts/fetch_datosar_from_meta.py
       - name: Commit & push
         run: |
           git config user.name "bot"
-          git config user.email "bot@example.com"
-          git add -A
-          git commit -m "datosar nightly" || echo "no changes"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/datosar_*.parquet
+          git commit -m "update DatosAR catalog+data" || echo "nada para commitear"
           git push
