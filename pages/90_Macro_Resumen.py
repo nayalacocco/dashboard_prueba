@@ -9,122 +9,76 @@ from ui import inject_css, range_controls, kpi_quad
 
 st.set_page_config(page_title="Resumen macro – núcleo", layout="wide")
 inject_css()
-st.title("📈 Resumen macro – núcleo (BCRA + placeholders)")
+st.title("📈 Resumen macro – núcleo (BCRA + DatosAR)")
 
-DATA_PARQ = Path("data/macro_core_long.parquet")
-DATA_CSV  = Path("data/macro_core_long.csv")
+BCRA_PARQ = Path("data/macro_core_long.parquet")
+BCRA_CSV  = Path("data/macro_core_long.csv")
+DAR_PARQ  = Path("data/datosar_core_long.parquet")
 
-# ----------------------------
-# Carga robusta + normalización
-# ----------------------------
-@st.cache_data
-def load_long():
-    path = DATA_PARQ if DATA_PARQ.exists() else (DATA_CSV if DATA_CSV.exists() else None)
-    if path is None:
+def _load_any(path: Path) -> pd.DataFrame:
+    if not path.exists():
         return pd.DataFrame()
-
     if path.suffix.lower() == ".parquet":
         df = pd.read_parquet(path)
     else:
         df = pd.read_csv(path)
-
-    # Normalizo tipos
     if "fecha" in df.columns:
         df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
     if "valor" in df.columns:
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
-
-    # Mapear 'serie' -> 'indicador' (si viniera así del builder)
+    # normalizo esquema mínimo
     if "indicador" not in df.columns and "serie" in df.columns:
-        df = df.rename(columns={"serie": "indicador"})
-    # Crear 'titulo' si no existe
+        df = df.rename(columns={"serie":"indicador"})
     if "titulo" not in df.columns:
         df["titulo"] = df["indicador"]
+    if "fuente" not in df.columns:
+        df["fuente"] = ""
+    return df.dropna(subset=["fecha","indicador","valor"])
 
-    # Asegurar columnas mínimas
-    for col in ("fuente", "nota"):
-        if col not in df.columns:
-            df[col] = ""
+@st.cache_data
+def load_all():
+    bc = _load_any(BCRA_PARQ) if BCRA_PARQ.exists() else _load_any(BCRA_CSV)
+    da = _load_any(DAR_PARQ)
+    if bc.empty and da.empty:
+        return pd.DataFrame()
+    return pd.concat([bc, da], ignore_index=True).sort_values(["titulo","fecha"])
 
-    # Limpio NaNs obvios
-    df = df.dropna(subset=["fecha", "indicador", "valor"])
-    return df
-
-df = load_long()
+df = load_all()
 if df.empty:
     st.warning(
-        "Aún no encontré `data/macro_core_long.parquet` ni `data/macro_core_long.csv`.\n\n"
-        "Corré primero:\n"
-        "1) `scripts/fetch_bcra.py`\n"
-        "2) `scripts/build_macro_core.py`"
+        "No hay datos aún. Corré:\n"
+        "• Workflow BCRA (para macro_core)\n"
+        "• Workflow DatosAR core (5 series)"
     )
     st.stop()
 
-# -------------------------------------------------------------------------------------------------
-# Descubrimiento flexible de las 2 series núcleo (por si cambian IDs/etiquetas entre builds)
-# -------------------------------------------------------------------------------------------------
-def find_indicador(df: pd.DataFrame, needles: list[str]) -> str | None:
-    """Devuelve el valor exacto de df['indicador'] que 'contenga' alguno de los patrones."""
-    if "indicador" not in df.columns:
-        return None
-    col = df["indicador"].astype(str).str.lower()
-    for needle in needles:
-        m = col.str.contains(needle.lower(), na=False)
-        if m.any():
-            return df.loc[m, "indicador"].iloc[0]
-    return None
+# Opciones: todos los títulos
+opciones = sorted(df["titulo"].dropna().unique().tolist())
+default_opts = []
+# Intento setear defaults amables si existen
+prefer = [
+    "Reservas brutas BCRA",
+    "Pasivos remunerados (LELIQ+Pases) – BCRA",
+    "IPC variación mensual (nacional)",
+]
+for p in prefer:
+    if p in opciones and p not in default_opts:
+        default_opts.append(p)
 
-# Patrones típicos (podés sumar más)
-key_reservas = find_indicador(df, ["reservas_brutas_bcra", "reservas brutas", "reservas_bcra", "reservas"])
-key_pasivos  = find_indicador(df, ["pasivos_remunerados_bcra", "pases pasivos", "leliq", "pasivos remunerados"])
-
-# Armamos el "catálogo" visible (solo las que encontremos)
-indicadores = {}
-if key_reservas:
-    # título preferente = el 'titulo' que trae el archivo; si falta, uso el indicador crudo
-    t = df.loc[df["indicador"] == key_reservas, "titulo"]
-    indicadores[key_reservas] = (t.iloc[0] if not t.empty else "Reservas brutas BCRA")
-if key_pasivos:
-    t = df.loc[df["indicador"] == key_pasivos, "titulo"]
-    indicadores[key_pasivos] = (t.iloc[0] if not t.empty else "Pasivos remunerados (LELIQ+Pases) – BCRA")
-
-if not indicadores:
-    st.error(
-        "No pude identificar las series núcleo en el archivo. "
-        "Revisá que el builder exporte al menos 'reservas brutas' y 'pasivos remunerados'."
-    )
-    st.stop()
-
-# Opciones que ve el usuario (por 'titulo')
-opts = [v for v in indicadores.values()]
-sel = st.multiselect(
-    "Elegí hasta 3 series",
-    options=opts,
-    default=opts[: min(2, len(opts))],
-    max_selections=3
-)
+sel = st.multiselect("Elegí hasta 3 series", options=opciones,
+                     default=(default_opts[:3] if default_opts else opciones[:2]),
+                     max_selections=3)
 if not sel:
     st.info("Seleccioná al menos una serie.")
     st.stop()
 
-# Map de título -> indicador real
-title_to_key = {}
-for k, v in indicadores.items():
-    title_to_key[v] = k
-
-keys = [title_to_key[t] for t in sel if t in title_to_key]
-
-# ----------------------------
-# Armado wide y controles
-# ----------------------------
 wide = (
-    df[df["indicador"].isin(keys)]
+    df[df["titulo"].isin(sel)]
     .pivot(index="fecha", columns="titulo", values="valor")
     .sort_index()
 )
-
 if wide.empty:
-    st.warning("No hay datos para las series seleccionadas en el rango disponible.")
+    st.warning("No hay datos para las series seleccionadas.")
     st.stop()
 
 dmin, dmax = wide.index.min(), wide.index.max()
@@ -133,48 +87,41 @@ vis = wide.loc[d_ini:d_fin].dropna(how="all")
 if freq_label.startswith("Mensual"):
     vis = vis.resample("M").last()
 
-# ----------------------------
 # Chart
-# ----------------------------
 fig = go.Figure()
 palette = ["#60A5FA", "#F87171", "#34D399"]
 for i, name in enumerate(vis.columns):
     s = vis[name].dropna()
     if s.empty:
         continue
-    fig.add_trace(
-        go.Scatter(
-            x=s.index, y=s.values, mode="lines",
-            name=name, line=dict(width=2, color=palette[i % 3]),
-            hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>"
-        )
-    )
-fig.update_layout(template="atlas_dark", height=620, margin=dict(t=30, b=80, l=70, r=60))
+    fig.add_trace(go.Scatter(
+        x=s.index, y=s.values, mode="lines",
+        name=name, line=dict(width=2, color=palette[i % 3]),
+        hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>"
+    ))
+fig.update_layout(template="atlas_dark", height=620, margin=dict(t=30,b=80,l=70,r=60))
 fig.update_xaxes(title_text="Fecha")
 fig.update_yaxes(title_text="Valor")
-
 st.plotly_chart(fig, use_container_width=True)
 
-# ----------------------------
-# KPIs (último + MoM + YoY + Δ)
-# ----------------------------
+# KPIs
 from bcra_utils import resample_series, compute_kpis
-
 palette_cycle = ["#60A5FA", "#F87171", "#34D399"]
 for idx, name in enumerate(vis.columns):
     full = wide[name].dropna()
     visible = resample_series(
         vis[name].dropna(),
         freq=("D" if freq_label.startswith("Diaria") else "M"),
-        how="last"
+        how="last",
     ).dropna()
     mom, yoy, d_per = compute_kpis(full, visible)
     last_val = visible.iloc[-1] if not visible.empty else None
+    st.markdown(" ")
     kpi_quad(
         title=name,
         color=palette_cycle[idx % len(palette_cycle)],
         last_value=last_val,
-        is_percent=False,
+        is_percent=("variación" in name.lower() or "%" in name.lower()),
         mom=mom, yoy=yoy, d_per=d_per,
         tip_last="Último dato del rango visible.",
         tip_mom="Δ vs mes anterior (último dato mensual).",
