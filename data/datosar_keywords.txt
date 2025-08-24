@@ -1,6 +1,12 @@
+inflación
+ipc
 resultado primario
-gasto total
-ingresos
 resultado financiero
-remuneraciones
-inversión real directa
+ingresos
+gasto
+superávit
+déficit
+mecon
+hacienda
+tesoro
+indec
