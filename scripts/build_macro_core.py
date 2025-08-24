@@ -1,148 +1,170 @@
 # scripts/build_macro_core.py
-import os, sys, math
-from datetime import timedelta
+# Lee data/monetarias_long.csv (y el catálogo) generado por scripts/fetch_bcra.py
+# y arma series “core” derivadas en data/macro_core_long.parquet / .csv
 
+from __future__ import annotations
+import json
+from pathlib import Path
 import pandas as pd
 
-ROOT = os.path.dirname(os.path.dirname(__file__))
-DATA = os.path.join(ROOT, "data")
-BCRA_LONG = os.path.join(DATA, "bcra_long.parquet")
-OUT_LONG  = os.path.join(DATA, "macro_core_long.parquet")
+# ------------------------------
+# Entradas (de TU fetch_bcra.py)
+# ------------------------------
+DATA_DIR = Path("data")
+BCRA_LONG_CSV = DATA_DIR / "monetarias_long.csv"
+BCRA_CAT_JSON = DATA_DIR / "monetarias_catalogo.json"
 
-def _load_bcra():
-    if not os.path.exists(BCRA_LONG):
-        raise FileNotFoundError(f"No existe {BCRA_LONG}. Corré el fetch del BCRA primero.")
-    df = pd.read_parquet(BCRA_LONG)
-    df["fecha"] = pd.to_datetime(df["fecha"])
-    # normalizo descripciones
-    df["descripcion_norm"] = df["descripcion"].str.strip().str.lower()
-    return df
+# ------------------------------
+# Salidas
+# ------------------------------
+OUT_PARQUET = DATA_DIR / "macro_core_long.parquet"
+OUT_CSV     = DATA_DIR / "macro_core_long.csv"
 
-def _find_first(descs, *tokens):
-    """Devuelve la primer descripción que contenga TODOS los tokens (case-insensitive)."""
-    toks = [t.lower() for t in tokens]
-    for d in descs:
-        s = (d or "").lower()
-        if all(t in s for t in toks):
-            return d
-    return None
-
-def _nearest_merge(a: pd.Series, b: pd.Series, tolerance_days=2) -> pd.DataFrame:
-    """Join por fecha con tolerancia (en días). Toma el valor más reciente anterior."""
-    a = a.dropna().sort_index()
-    b = b.dropna().sort_index()
-    # reindex a diario para facilitar merge_asof
-    a_d = a.asfreq("D").ffill()
-    b_d = b.asfreq("D").ffill()
-    df = pd.merge_asof(
-        a_d.reset_index().rename(columns={"index":"fecha", a.name: "a"}),
-        b_d.reset_index().rename(columns={"index":"fecha", b.name: "b"}),
-        on="fecha",
-        direction="backward",
-        tolerance=pd.Timedelta(days=tolerance_days),
-    ).set_index("fecha")
-    return df.dropna()
-
-def _maybe_to_usd_mn(series_name: str, s: pd.Series, fx_mep: pd.Series|None, fx_ref: pd.Series|None) -> tuple[pd.Series, str]:
-    """
-    Intenta adivinar si la serie está en millones de USD o millones de ARS.
-    Si parece ARS, convierte a USD usando fx_ref (A3500) si existe.
-    Devuelve (serie_en_millones_de_usd, nota_unidad)
-    """
-    name = (series_name or "").lower()
-    # pistas:
-    if "millones de dólares" in name or "millones de dolares" in name or "millones de usd" in name:
-        return s, "millones de USD"
-    if "millones de $" in name or "millones de pesos" in name:
-        # convertir ARS -> USD con A3500 si está
-        if fx_ref is None or fx_ref.empty:
-            return pd.Series(dtype=float), "(no pude convertir ARS→USD: falta A3500)"
-        pair = _nearest_merge(s, fx_ref)  # columnas a, b
-        usd = (pair["a"] / pair["b"]).rename(s.name)
-        return usd, "millones de USD (ARS/A3500)"
-    # por defecto: no sabemos
-    return pd.Series(dtype=float), "(unidad desconocida)"
-
-def build_series():
-    df = _load_bcra()
-    descs = df["descripcion"].dropna().unique().tolist()
-
-    # ➊ Reservas brutas BCRA (ya viene en millones de USD)
-    reservas_name = _find_first(descs, "reservas", "brutas") or _find_first(descs, "reservas internacionales")
-    reservas = None
-    if reservas_name:
-        reservas = (
-            df[df["descripcion"] == reservas_name]
-            .set_index("fecha")["valor"].astype(float).dropna().sort_index()
+# ------------------------------
+# Helpers
+# ------------------------------
+def _ensure_inputs():
+    missing = []
+    if not BCRA_LONG_CSV.exists():
+        missing.append(str(BCRA_LONG_CSV))
+    if not BCRA_CAT_JSON.exists():
+        missing.append(str(BCRA_CAT_JSON))
+    if missing:
+        raise FileNotFoundError(
+            "Faltan archivos de entrada del BCRA.\n"
+            + "\n".join(f" - {m}" for m in missing)
+            + "\nCorré primero: scripts/fetch_bcra.py (o el workflow de fetch del BCRA)."
         )
 
-    # ➋ Stock de pasivos remunerados (LELIQ + Pases pasivos) en millones de USD
-    #    Leliq ya no existe, pero si hubiera serie, la sumamos.
-    pases_name  = _find_first(descs, "stock", "pases", "pasivos")
-    leliq_name  = _find_first(descs, "stock", "leliq")
-    fx_name     = _find_first(descs, "tipo de cambio", "3500") or _find_first(descs, "comunicación", "a 3500")
+def _load_bcra_long() -> pd.DataFrame:
+    df = pd.read_csv(BCRA_LONG_CSV, dtype={"id": str, "descripcion": str})
+    # normalizo tipos
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce", utc=True).dt.tz_localize(None)
+    df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
+    df = df.dropna(subset=["fecha", "valor"]).sort_values(["descripcion", "fecha"])
+    return df
 
-    s_pases = s_leliq = fx_ref = None
-    if pases_name:
-        s_pases = df[df["descripcion"] == pases_name].set_index("fecha")["valor"].astype(float).dropna().sort_index()
-    if leliq_name:
-        s_leliq = df[df["descripcion"] == leliq_name].set_index("fecha")["valor"].astype(float).dropna().sort_index()
-    if fx_name:
-        fx_ref = df[df["descripcion"] == fx_name].set_index("fecha")["valor"].astype(float).dropna().sort_index()
+def _load_catalog() -> pd.DataFrame:
+    with open(BCRA_CAT_JSON, "r", encoding="utf-8") as f:
+        raw = json.load(f)
+    return pd.DataFrame(raw)
 
-    pasivos_usd = None
-    if s_pases is not None:
-        p_mn, _ = _maybe_to_usd_mn(pases_name, s_pases, fx_mep=None, fx_ref=fx_ref)  # en millones de USD
-        if s_leliq is not None and not s_leliq.empty:
-            l_mn, _ = _maybe_to_usd_mn(leliq_name, s_leliq, fx_mep=None, fx_ref=fx_ref)
-            pasivos_usd = (p_mn.align(l_mn, join="outer")[0].fillna(0) + l_mn.fillna(0)).dropna()
-        else:
-            pasivos_usd = p_mn.dropna()
+def _find_desc(options: list[str], *tokens: str) -> str | None:
+    """
+    Devuelve la primera descripción cuyo string incluye TODOS los tokens (case-insensitive).
+    """
+    toks = [t.lower() for t in tokens if t]
+    for name in options:
+        s = (name or "").lower()
+        if all(tok in s for tok in toks):
+            return name
+    return None
 
-    # Salida unificada en formato long
-    rows = []
+# ------------------------------
+# Core builder
+# ------------------------------
+def build_series() -> pd.DataFrame:
+    _ensure_inputs()
+    df = _load_bcra_long()
+    cat = _load_catalog()
 
-    def push(serie: pd.Series|None, key: str, titulo: str, unidad: str, scale_to_bn=False):
-        if serie is None or serie.empty:
-            return
-        s = serie.copy()
-        if scale_to_bn:
-            s = s / 1000.0  # millones → miles de millones (bn)
-            u = "miles de millones de USD"
-        else:
-            u = unidad
-        tmp = pd.DataFrame({
+    # universo de descripciones disponibles
+    descs = sorted(df["descripcion"].dropna().unique().tolist())
+
+    # 1) Reservas internacionales brutas del BCRA (en millones de USD)
+    #    (hay varias descripciones; tratamos de agarrar la más estándar)
+    reservas_desc = (
+        _find_desc(descs, "reservas", "internacionales", "dólar")
+        or _find_desc(descs, "reservas", "internacionales", "usd")
+        or _find_desc(descs, "reservas", "brutas")
+        or _find_desc(descs, "reservas")
+    )
+
+    # 2) Pasivos remunerados del BCRA (Pases pasivos, en millones de $)
+    pases_desc = (
+        _find_desc(descs, "pases", "pasivos")
+        or _find_desc(descs, "stock", "pases", "pasivos")
+        or _find_desc(descs, "pases")  # fallback
+    )
+
+    # 3) Tipo de cambio mayorista para convertir $ -> USD
+    tc_desc = (
+        _find_desc(descs, "tipo", "cambio", "comunicación", "3500")
+        or _find_desc(descs, "tipo", "cambio", "mayorista")
+        or _find_desc(descs, "tipo", "cambio", "referencia")
+        or _find_desc(descs, "ars/usd")
+        or _find_desc(descs, "usd", "oficial")
+    )
+
+    missing = []
+    if not reservas_desc: missing.append("Reservas internacionales (no encontré descripción)")
+    if not pases_desc:    missing.append("Pases pasivos / Pasivos remunerados (no encontré descripción)")
+    if not tc_desc:       missing.append("Tipo de cambio mayorista/ref. (no encontré descripción)")
+    if missing:
+        raise RuntimeError("No pude identificar las siguientes series base:\n- " + "\n- ".join(missing))
+
+    # Pivot base
+    wide = (
+        df[df["descripcion"].isin([reservas_desc, pases_desc, tc_desc])]
+        .pivot(index="fecha", columns="descripcion", values="valor")
+        .sort_index()
+    )
+
+    # renombres cortos
+    wide = wide.rename(columns={
+        reservas_desc: "reservas_usd_mill",
+        pases_desc:    "pases_mill_ars",
+        tc_desc:       "tc_ars_por_usd",
+    })
+
+    # Derivados
+    out = []
+
+    # Reservas (ya en millones de USD, asumimos)
+    if "reservas_usd_mill" in wide:
+        s = wide["reservas_usd_mill"].dropna()
+        out.append(pd.DataFrame({
             "fecha": s.index,
-            "indicador": key,
-            "titulo": titulo,
+            "serie": "Reservas brutas del BCRA – millones de USD",
             "valor": s.values,
-            "unidad": u,
-        })
-        rows.append(tmp)
+            "fuente": "BCRA (Monetarias)",
+            "nota": "Serie del API 'Reservas internacionales'; nivel en millones de USD.",
+        }))
 
-    if reservas is not None:
-        # viene en millones de USD, muestro como miles de millones en el dashboard
-        push(reservas, "reservas_brutas_bcra_usd_bn", "Reservas brutas BCRA", "miles de millones de USD", scale_to_bn=True)
+    # Pasivos remunerados en millones de USD = pases (mill. ARS) / tipo de cambio (ARS/USD)
+    if {"pases_mill_ars", "tc_ars_por_usd"}.issubset(wide.columns):
+        s = (wide["pases_mill_ars"] / wide["tc_ars_por_usd"]).dropna()
+        out.append(pd.DataFrame({
+            "fecha": s.index,
+            "serie": "Pasivos remunerados del BCRA – millones de USD",
+            "valor": s.values,
+            "fuente": "BCRA (Monetarias)",
+            "nota": "Pases pasivos en millones de ARS convertidos a USD con TC mayorista de referencia.",
+        }))
 
-    if pasivos_usd is not None and not pasivos_usd.empty:
-        push(pasivos_usd, "pasivos_remunerados_bcra_usd_bn", "Pasivos remunerados (LELIQ+Pases) – BCRA", "miles de millones de USD", scale_to_bn=True)
+    if not out:
+        raise RuntimeError("No se pudo construir ninguna serie derivada (out vacío).")
 
-    # placeholders (quedan con cero filas hasta que enchufemos DatosAR/INDEC)
-    placeholders = [
-        ("resultado_fiscal_financiero_pct_pib", "Resultado fiscal financiero (% del PIB)"),
-        ("inflacion_nucleo_tna", "Inflación núcleo (TNA)"),
-        ("pobreza_pct", "Pobreza (%)"),
-        ("deuda_publica_usd_bn", "Deuda pública consolidada (USD bn)"),
-        ("riesgo_pais_pb", "Riesgo país (p.b.)"),
-    ]
-    for key, titulo in placeholders:
-        pass  # se completarán cuando sumemos el catálogo externo
+    long = pd.concat(out, ignore_index=True).sort_values(["serie", "fecha"])
+    return long
 
-    if not rows:
-        raise RuntimeError("No pude construir ninguna serie macro core. ¿Faltan variables BCRA?")
-    out = pd.concat(rows, ignore_index=True).sort_values("fecha")
-    out.to_parquet(OUT_LONG, index=False)
-    print(f"[macro_core] Guardado {OUT_LONG}  (rows={len(out):,})")
+def main():
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        long = build_series()
+        # Guardamos
+        long.to_parquet(OUT_PARQUET, index=False)
+        long.to_csv(OUT_CSV, index=False, encoding="utf-8")
+        print(f"✅ Guardado: {OUT_PARQUET} ({len(long):,} filas)")
+        print(f"✅ Guardado: {OUT_CSV} ({len(long):,} filas)")
+        # Resumen por serie
+        resumen = long.groupby("serie")["valor"].last().to_frame("último").reset_index()
+        print("\nSeries derivadas y último valor:")
+        for _, r in resumen.iterrows():
+            print(f" - {r['serie']}: {r['último']:.2f}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise
 
 if __name__ == "__main__":
-    build_series()
+    main()
