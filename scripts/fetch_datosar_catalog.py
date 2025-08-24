@@ -7,7 +7,7 @@ DATA = ROOT / "data"
 RAW  = DATA / "raw"
 RAW.mkdir(parents=True, exist_ok=True)
 
-SRC = RAW / "series-tiempo-metadatos.csv"  # <<-- leemos el CSV local
+SRC = DATA / "series-tiempo-metadatos.csv"
 SMALL_CSV = DATA / "datosar_metacatalog.csv"
 PARQUET   = DATA / "datosar_catalog_meta.parquet"
 
