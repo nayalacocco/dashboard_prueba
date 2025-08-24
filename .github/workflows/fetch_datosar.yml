@@ -50,4 +50,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "DatosAR: actualizar catálogo y datos" || echo "No changes"
+
+- name: Debug raw headers
+  run: python scripts/debug_raw_headers.py
           git push || true
