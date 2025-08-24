@@ -8,7 +8,7 @@ RAW  = DATA / "raw"
 RAW.mkdir(parents=True, exist_ok=True)
 
 SRC = DATA / "series-tiempo-metadatos.csv"
-SMALL_CSV = DATA / "datosar_metacatalog.csv"
+SMALL_CSV = "data" / "datosar_metacatalog.csv"
 PARQUET   = DATA / "datosar_catalog_meta.parquet"
 
 def pick_first(*candidates, cols):
