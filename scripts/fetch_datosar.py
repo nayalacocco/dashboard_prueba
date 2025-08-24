@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 # scripts/fetch_datosar.py
 from datosar_utils import (
     fetch_all_and_save,
