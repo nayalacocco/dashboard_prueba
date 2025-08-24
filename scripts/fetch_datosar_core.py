@@ -2,7 +2,6 @@
 from __future__ import annotations
 import sys, time
 from pathlib import Path
-import io
 import requests
 import pandas as pd
 
@@ -11,7 +10,6 @@ OUT.parent.mkdir(parents=True, exist_ok=True)
 
 BASE = "https://apis.datos.gob.ar/series/api/series"
 
-# Catálogo mínimo (IDs + metadatos para títulos/unidades)
 SERIES = [
     {
         "id": "143.3_NO_PR_2004_A_21",
@@ -46,57 +44,89 @@ SERIES = [
 ]
 
 HDRS = {
-    "User-Agent": "macro-core-datosar/1.0",
-    "Accept": "text/csv,application/json",
+    "User-Agent": "macro-core-datosar/1.1",
+    "Accept": "application/json",
 }
 
-def fetch_csv(id_: str, start="2000-01-01", retries=4, pause=0.8) -> pd.DataFrame:
-    """Lee la serie por CSV (más fácil que JSON). Devuelve df con columnas: fecha, valor."""
+def fetch_series_json(id_: str, start="2000-01-01", retries=4, pause=0.8) -> pd.DataFrame:
+    """
+    Usa el formato JSON de Series-Tiempo:
+      - 'columns': metadatos por columna
+      - 'data': filas con valores en el mismo orden que 'columns'
+    Devuelve DataFrame con columnas: fecha, valor
+    """
     params = {
         "ids": id_,
-        "format": "csv",
+        "format": "json",
         "start_date": start,
+        "limit": 500000,   # grande para no paginar
     }
     last = None
-    for k in range(retries):
+    for _ in range(retries):
         try:
             r = requests.get(BASE, params=params, headers=HDRS, timeout=60)
             last = r
-            if r.status_code == 200 and r.content:
-                df = pd.read_csv(io.BytesIO(r.content))
-                # El CSV trae col 'indice_tiempo' + una col con el ID
-                time_col = "indice_tiempo"
-                if time_col not in df.columns or id_ not in df.columns:
-                    raise RuntimeError("CSV inesperado (faltan columnas).")
-                out = df[[time_col, id_]].rename(columns={time_col: "fecha", id_: "valor"})
-                out["fecha"] = pd.to_datetime(out["fecha"], errors="coerce")
-                out["valor"] = pd.to_numeric(out["valor"], errors="coerce")
-                out = out.dropna(subset=["fecha", "valor"])
-                return out
+            if r.status_code == 200:
+                js = r.json()
+                cols = js.get("columns") or []
+                data = js.get("data") or []
+                if not cols or not data:
+                    raise RuntimeError("JSON sin columns/data.")
+
+                # Ubico índices de tiempo y de la serie pedida
+                t_idx = None
+                v_idx = None
+                for i, c in enumerate(cols):
+                    # c es dict: {'field': 't', 'title': 'indice_tiempo', ...} o {'field': '143.3_...'}
+                    field = c.get("field") or ""
+                    if field in ("t", "indice_tiempo", "time"):
+                        t_idx = i
+                    if field == id_:
+                        v_idx = i
+                # Fallback: a veces 'field' de la serie viene en 'id'
+                if v_idx is None:
+                    for i, c in enumerate(cols):
+                        if c.get("id") == id_:
+                            v_idx = i
+
+                if t_idx is None or v_idx is None:
+                    raise RuntimeError(f"No pude localizar columnas (t_idx={t_idx}, v_idx={v_idx}).")
+
+                rows = []
+                for row in data:
+                    # cada row es una lista con valores alineados a 'columns'
+                    ts = row[t_idx]
+                    val = row[v_idx]
+                    rows.append({"fecha": ts, "valor": val})
+
+                df = pd.DataFrame(rows)
+                df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+                df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
+                df = df.dropna(subset=["fecha", "valor"])
+                return df
         except Exception:
             pass
         time.sleep(pause)
-    raise RuntimeError(f"Fallo al bajar {id_} (último status: {getattr(last,'status_code',None)})")
+    raise RuntimeError(f"Fallo al bajar {id_} (último status: {getattr(last, 'status_code', None)})")
 
 def main():
-    rows = []
-    for s in SERIES:
-        print(f"• Bajando {s['id']} …", flush=True)
-        df = fetch_csv(s["id"])
-        df["indicador"] = s["indicador"]
-        df["titulo"]     = s["titulo"]
-        df["unidades"]   = s["unidades"]
-        df["fuente"]     = "DatosAR"
-        rows.append(df)
-
-    long_df = pd.concat(rows, ignore_index=True).sort_values(["indicador","fecha"])
-    OUT.write_bytes(b"") if OUT.exists() else None
-    long_df.to_parquet(OUT, index=False)
-    print(f"✅ Guardado {OUT} ({len(long_df):,} filas)")
-
-if __name__ == "__main__":
     try:
-        main()
+        frames = []
+        for s in SERIES:
+            print(f"• Bajando {s['id']} …", flush=True)
+            df = fetch_series_json(s["id"])
+            df["indicador"] = s["indicador"]
+            df["titulo"]     = s["titulo"]
+            df["unidades"]   = s["unidades"]
+            df["fuente"]     = "DatosAR"
+            frames.append(df)
+
+        long_df = pd.concat(frames, ignore_index=True).sort_values(["indicador", "fecha"])
+        long_df.to_parquet(OUT, index=False)
+        print(f"✅ Guardado {OUT} ({len(long_df):,} filas)")
     except Exception as e:
         print(f"ERROR: {e}")
         sys.exit(1)
+
+if __name__ == "__main__":
+    main()
