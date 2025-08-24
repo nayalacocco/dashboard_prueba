@@ -1,6 +1,7 @@
 # datosar_utils.py
 from __future__ import annotations
 
+import csv
 import json
 import math
 import os
@@ -78,7 +79,7 @@ def load_metadata_csvs(raw_dir: str = RAW_DIR) -> pd.DataFrame:
     frames = []
     for p in paths:
         try:
-            df = pd.read_csv(p)
+            df = pd.read_csv(p, dtype=str, engine="python", on_bad_lines="skip")
         except UnicodeDecodeError:
             df = pd.read_csv(p, encoding="latin-1")
         df = _map_columns(df)
