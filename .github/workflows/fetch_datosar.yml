@@ -1,24 +1,38 @@
-name: Fetch DatosAR
+name: DatosAR catalog (local CSV)
 
 on:
+  workflow_dispatch: {}
   schedule:
-    - cron: "15 3 * * *" # todos los días 03:15 UTC
-  workflow_dispatch:
+    - cron: "18 2 * * *"
 
 jobs:
-  fetch-datosar:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install pandas requests pyarrow fastparquet
-      - run: python scripts/fetch_datosar_from_meta.py
-      - name: Commit & push
+
+      - name: Install deps
         run: |
-          git config user.name "bot"
-          git config user.email "bot@users.noreply.github.com"
-          git add data/datosar_*.parquet
-          git commit -m "update DatosAR catalog+data" || echo "nada para commitear"
-          git push
+          python -m pip install -U pip
+          pip install pandas pyarrow
+
+      - name: Build reduced catalog from local CSV
+        run: python scripts/fetch_datosar_catalog.py
+
+      - name: Commit artifacts
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/datosar_metacatalog.csv data/datosar_catalog_meta.parquet || true
+          if ! git diff --cached --quiet; then
+            git commit -m "DatosAR: refresh reduced catalog"
+            git push
+          else
+            echo "No changes to commit."
+          fi
