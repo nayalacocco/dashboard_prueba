@@ -25,11 +25,6 @@
     "unidad": ""
   },
   {
-    "id": 9,
-    "descripcion": "Tasas de interés de las operaciones de pase activas para el BCRA, a 1 día de plazo (en % n.a.)",
-    "unidad": ""
-  },
-  {
     "id": 10,
     "descripcion": "Tasas de interés de las operaciones de pase pasivas para el BCRA, a 1 día de plazo (en % n.a.)",
     "unidad": ""
