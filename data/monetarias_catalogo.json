@@ -1,20 +1,5 @@
 [
   {
-    "id": 1,
-    "descripcion": "Reservas Internacionales del BCRA (en millones de dólares - cifras provisorias sujetas a cambio de valuación)",
-    "unidad": ""
-  },
-  {
-    "id": 4,
-    "descripcion": "Tipo de Cambio Minorista ($ por USD) Comunicación B 9791 - Promedio vendedor",
-    "unidad": ""
-  },
-  {
-    "id": 5,
-    "descripcion": "Tipo de Cambio Mayorista ($ por USD) Comunicación A 3500 - Referencia",
-    "unidad": ""
-  },
-  {
     "id": 7,
     "descripcion": "BADLAR en pesos de bancos privados (en % n.a.)",
     "unidad": ""
@@ -932,6 +917,21 @@
   {
     "id": 198,
     "descripcion": "Otros",
+    "unidad": ""
+  },
+  {
+    "id": 1,
+    "descripcion": "Reservas Internacionales del BCRA (en millones de dólares - cifras provisorias sujetas a cambio de valuación)",
+    "unidad": ""
+  },
+  {
+    "id": 4,
+    "descripcion": "Tipo de Cambio Minorista ($ por USD) Comunicación B 9791 - Promedio vendedor",
+    "unidad": ""
+  },
+  {
+    "id": 5,
+    "descripcion": "Tipo de Cambio Mayorista ($ por USD) Comunicación A 3500 - Referencia",
     "unidad": ""
   }
 ]
