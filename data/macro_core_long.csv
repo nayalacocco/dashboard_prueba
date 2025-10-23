@@ -5795,6 +5795,7 @@ fecha,serie,valor,fuente,nota
 2025-10-15,Pasivos remunerados del BCRA – millones de USD,0.0,BCRA (Monetarias),Pases pasivos en millones de ARS convertidos a USD con TC mayorista de referencia.
 2025-10-16,Pasivos remunerados del BCRA – millones de USD,0.0,BCRA (Monetarias),Pases pasivos en millones de ARS convertidos a USD con TC mayorista de referencia.
 2025-10-17,Pasivos remunerados del BCRA – millones de USD,0.0,BCRA (Monetarias),Pases pasivos en millones de ARS convertidos a USD con TC mayorista de referencia.
+2025-10-20,Pasivos remunerados del BCRA – millones de USD,0.0,BCRA (Monetarias),Pases pasivos en millones de ARS convertidos a USD con TC mayorista de referencia.
 1996-01-03,Reservas brutas del BCRA – millones de USD,17404.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 1996-01-04,Reservas brutas del BCRA – millones de USD,17435.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 1996-01-05,Reservas brutas del BCRA – millones de USD,17609.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
@@ -13106,7 +13107,7 @@ fecha,serie,valor,fuente,nota
 2025-09-02,Reservas brutas del BCRA – millones de USD,40763.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 2025-09-03,Reservas brutas del BCRA – millones de USD,40741.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 2025-09-04,Reservas brutas del BCRA – millones de USD,40378.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
-2025-09-05,Reservas brutas del BCRA – millones de USD,0.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
+2025-09-05,Reservas brutas del BCRA – millones de USD,40531.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 2025-09-08,Reservas brutas del BCRA – millones de USD,40551.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 2025-09-09,Reservas brutas del BCRA – millones de USD,40511.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 2025-09-10,Reservas brutas del BCRA – millones de USD,40404.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
@@ -13136,3 +13137,4 @@ fecha,serie,valor,fuente,nota
 2025-10-15,Reservas brutas del BCRA – millones de USD,41741.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 2025-10-16,Reservas brutas del BCRA – millones de USD,41710.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 2025-10-17,Reservas brutas del BCRA – millones de USD,41170.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
+2025-10-20,Reservas brutas del BCRA – millones de USD,41316.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
