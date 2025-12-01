@@ -580,41 +580,6 @@
     "unidad": ""
   },
   {
-    "id": 128,
-    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos, de 30-44 días , total de operaciones,TNA (en %)",
-    "unidad": ""
-  },
-  {
-    "id": 129,
-    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos, de 30-44 días, hasta $100.000, TNA (en %)",
-    "unidad": ""
-  },
-  {
-    "id": 130,
-    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos, de 30-44 días, hasta $100.000, TEA (en %)",
-    "unidad": ""
-  },
-  {
-    "id": 131,
-    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos, de 30-44 días, de más de $1.000.000, TNA (en %)",
-    "unidad": ""
-  },
-  {
-    "id": 132,
-    "descripcion": "Tasa de interés de depósitos a plazo fijo en dólares, de 30-44 días, total de operaciones, TNA (en %)",
-    "unidad": ""
-  },
-  {
-    "id": 133,
-    "descripcion": "Tasa de interés de depósitos a plazo fijo en dólares, de 30-44 días, hasta $100.000, TNA (en %)",
-    "unidad": ""
-  },
-  {
-    "id": 134,
-    "descripcion": "Tasa de interés de depósitos a plazo fijo en dólares, de 30-44 días, de mas de USD1.000.000, TNA (en %)",
-    "unidad": ""
-  },
-  {
     "id": 135,
     "descripcion": "TAMAR total bancos, TNA (en %)",
     "unidad": ""
