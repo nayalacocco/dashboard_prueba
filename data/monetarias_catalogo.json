@@ -908,5 +908,45 @@
     "id": 1188,
     "descripcion": "Régimen de bandas cambiarias (Límite superior $1.400 + 1 mensual)",
     "unidad": ""
+  },
+  {
+    "id": 1189,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos",
+    "unidad": ""
+  },
+  {
+    "id": 1190,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos de personas humanas",
+    "unidad": ""
+  },
+  {
+    "id": 1191,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos de prestadores de servicios financieros",
+    "unidad": ""
+  },
+  {
+    "id": 1192,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en pesos de otras personas jurídicas",
+    "unidad": ""
+  },
+  {
+    "id": 1193,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en dólares",
+    "unidad": ""
+  },
+  {
+    "id": 1194,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en dólares de personas humanas",
+    "unidad": ""
+  },
+  {
+    "id": 1195,
+    "descripcion": "Tasa de interés de depósitos a plazo fijo en dólares de personas jurídicas",
+    "unidad": ""
+  },
+  {
+    "id": 1196,
+    "descripcion": "Tasa de interés de depósitos a la vista remunerados en pesos de prestadores de servicios financieros",
+    "unidad": ""
   }
 ]
