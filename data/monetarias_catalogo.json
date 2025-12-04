@@ -948,5 +948,10 @@
     "id": 1196,
     "descripcion": "Tasa de interés de depósitos a la vista remunerados en pesos de prestadores de servicios financieros",
     "unidad": ""
+  },
+  {
+    "id": 1197,
+    "descripcion": "Tasa de Intereses Moratorios (TIM)",
+    "unidad": ""
   }
 ]
