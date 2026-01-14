@@ -145,16 +145,6 @@
     "unidad": ""
   },
   {
-    "id": 41,
-    "descripcion": "Tasas de interés de las operaciones de pase pasivas para el BCRA, a 1 día de plazo (en % e.a.)",
-    "unidad": ""
-  },
-  {
-    "id": 42,
-    "descripcion": "Pases pasivos para el BCRA - Saldos (en millones de pesos)",
-    "unidad": ""
-  },
-  {
     "id": 43,
     "descripcion": "Tasa de interés para uso de la Justicia – Comunicado P 14290 | Base 01/04/1991 (en %)",
     "unidad": ""
