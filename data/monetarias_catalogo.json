@@ -25,11 +25,6 @@
     "unidad": ""
   },
   {
-    "id": 10,
-    "descripcion": "Tasas de interés de las operaciones de pase pasivas para el BCRA, a 1 día de plazo (en % n.a.)",
-    "unidad": ""
-  },
-  {
     "id": 11,
     "descripcion": "Tasas de interés por préstamos entre entidades financiera privadas (BAIBAR) (en % n.a.)",
     "unidad": ""
