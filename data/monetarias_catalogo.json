@@ -886,12 +886,12 @@
   },
   {
     "id": 1187,
-    "descripcion": "Régimen de bandas cambiarias (Límite inferior $1.000 - 1 mensual)",
+    "descripcion": "Régimen de bandas cambiarias. Límite inferior",
     "unidad": ""
   },
   {
     "id": 1188,
-    "descripcion": "Régimen de bandas cambiarias (Límite superior $1.400 + 1 mensual)",
+    "descripcion": "Régimen de bandas cambiarias. Límite superior",
     "unidad": ""
   },
   {
