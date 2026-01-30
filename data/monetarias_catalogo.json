@@ -151,7 +151,7 @@
   },
   {
     "id": 45,
-    "descripcion": "TAMAR en pesos de bancos privados (en % e.a.)",
+    "descripcion": "Tasa de interés TAMAR de bancos privados",
     "unidad": ""
   },
   {
@@ -171,7 +171,7 @@
   },
   {
     "id": 49,
-    "descripcion": "Efecto monetario de los adelantos transitorios al Tesoro Nacional (en millones de $)",
+    "descripcion": "Efecto monetario de los adelantos transitorios al tesoro nacional",
     "unidad": ""
   },
   {
