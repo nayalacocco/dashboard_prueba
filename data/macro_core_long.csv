@@ -2936,6 +2936,7 @@ fecha,serie,valor,fuente,nota
 2026-01-23,Pasivos remunerados del BCRA – millones de USD,0.0,BCRA (Monetarias),Pases pasivos en millones de ARS convertidos a USD con TC mayorista de referencia.
 2026-01-26,Pasivos remunerados del BCRA – millones de USD,0.0,BCRA (Monetarias),Pases pasivos en millones de ARS convertidos a USD con TC mayorista de referencia.
 2026-01-27,Pasivos remunerados del BCRA – millones de USD,0.0,BCRA (Monetarias),Pases pasivos en millones de ARS convertidos a USD con TC mayorista de referencia.
+2026-01-28,Pasivos remunerados del BCRA – millones de USD,0.0,BCRA (Monetarias),Pases pasivos en millones de ARS convertidos a USD con TC mayorista de referencia.
 1996-01-03,Reservas brutas del BCRA – millones de USD,17404.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 1996-01-04,Reservas brutas del BCRA – millones de USD,17435.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 1996-01-05,Reservas brutas del BCRA – millones de USD,17609.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
@@ -10340,3 +10341,4 @@ fecha,serie,valor,fuente,nota
 2026-01-22,Reservas brutas del BCRA – millones de USD,45397.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 2026-01-23,Reservas brutas del BCRA – millones de USD,45565.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
 2026-01-26,Reservas brutas del BCRA – millones de USD,45740.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
+2026-01-27,Reservas brutas del BCRA – millones de USD,45780.0,BCRA (Monetarias),Serie del API 'Reservas internacionales'; nivel en millones de USD.
